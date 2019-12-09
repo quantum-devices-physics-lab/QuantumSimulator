@@ -36,7 +36,7 @@ class SimulationData():
         self.b = b
         self.r = r
         
-def create_task(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd,idx,name):
+def create_task(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd_begin,ωd_end,n_points,idx,name):
     return {"N":N,
             "ωa":ωa,
             "ωb":ωb,
@@ -48,11 +48,13 @@ def create_task(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd,idx,name):
             "κr":κr,
             "T":T,
             "A":A,
-            "ωd":ωd,
+            "ωd_begin":ωd_begin,
+            "ωd_end":ωd_end,
+            "n_points":n_points,
             "idx":idx,
             "name":name}
 
-def execute(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd,idx,name):
+def execute(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd_begin,ωd_end,n_points,name,dirName):
     
     n_th_a = calculate_n_th(T,ωa)
     n_th_b = calculate_n_th(T,ωb)
@@ -89,13 +91,31 @@ def execute(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd,idx,name):
 
     if rate_relaxation_r > 0.0:
         c_ops.append(np.sqrt(rate_relaxation_r)*r)
-
-    H = drive_Hamiltonian(a,ωa,b,ωb,r,ωr,ga,gb,ωd,A)
-    rho_ss = steadystate(H, c_ops)
-    purity = (rho_ss*rho_ss).tr()
-    expect_a = (rho_ss*a).tr()
+        
+   
     
-    return SimulationData(create_task(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd,idx,name),a,expect_a,purity,b,r,rho_ss)
+    ωds = np.linspace(ωd_begin,ωd_end,n_points)*factor
+    for idx,ωd in enumerate(ωds):
+        H = drive_Hamiltonian(a,ωa,b,ωb,r,ωr,ga,gb,ωd,A)
+        rho_ss = steadystate(H, c_ops)
+        purity = (rho_ss*rho_ss).tr()
+        expect_a = (rho_ss*a).tr()
+        
+        data = SimulationData(create_task(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd_begin,ωd_end,n_points,idx,name),
+                              a,
+                              expect_a,
+                              purity,
+                              b,
+                              r,
+                              rho_ss)
+        
+        filedata_name = "{}/data_{}_{}".format(dirName,data.task["name"],data.task["idx"])
+        file = open(filedata_name,"wb")
+        print("Saving acquired data {} point {}".format(data.task["name"],data.task["idx"]))
+        pickle.dump(data,file)
+        file.close()
+        
+    return data
 
 def simulate(name,tasks):
     
@@ -114,7 +134,7 @@ def simulate(name,tasks):
     
     task_count = len(tasks)
     
-    cpu_count = mp.cpu_count()-1
+    cpu_count = mp.cpu_count()
         
     logger.info("Starting Simulation")
     
@@ -145,9 +165,11 @@ def simulate(name,tasks):
                                                   task["κr"],
                                                   task["T"],
                                                   task["A"],
-                                                  task["ωd"],
-                                                  task["idx"],
-                                                  task["name"]),callback=None,error_callback=None) for task in tasks]
+                                                  task["ωd_begin"],
+                                                  task["ωd_end"],
+                                                  task["n_points"],
+                                                  task["name"],
+                                                  dirName),callback=None,error_callback=None) for task in tasks]
 
         passedAnHour = 0
         while True:
@@ -181,11 +203,11 @@ def simulate(name,tasks):
         
         for ar in results:
             data = ar.get()
-            logger.info("Saving acquired data {} point {}".format(data.task["name"],data.task["idx"]))
-            filedata_name = "{}/data_{}_{}".format(dirName,data.task["name"],data.task["idx"])
-            file = open(filedata_name,"wb")
-            pickle.dump(ar.get(),file)
-            file.close()
+        #    logger.info("Saving acquired data {} point {}".format(data.task["name"],data.task["idx"]))
+        #    filedata_name = "{}/data_{}_{}".format(dirName,data.task["name"],data.task["idx"])
+        #    file = open(filedata_name,"wb")
+        #    pickle.dump(ar.get(),file)
+        #    file.close()
 
     except Exception as e:
         logger.exception(e)
@@ -223,106 +245,68 @@ if __name__ == "__main__":
     
     tasks = []
     
-    N= 6
-    ωa = 5.1
-    ωb = 5.7
-    ωr = 1.0
+    factor = 2.0*np.pi*1e9
+    
+    N = 5
+    ωa = 5.1* factor
+    ωb = 5.7* factor
+    ωr = 1.0* factor
     κa = 1.0e-4
     κb = 1.0e-4
     κr = 0.01
-    gb = 0.05
-    T=10e-3
-    n_points = 3000
-    
+    gb = 0.05* factor
+    ωd_begin = 5.08
+    ωd_end = 5.12
+    T = 10e-3
+    n_points = 2000
     n_case = 0    
     
-    gas = np.linspace(0.0,0.2,20)
-    A = 0.005
+    gas = np.linspace(0.0,0.2,10)* factor
+    A = 0.005* factor
     
     for ga in gas:
-        add_simulation_experiment(N, # N
-                                  ωa, # ωa
-                                  ωb, # ωb
-                                  ωr, # ωr
-                                  ga, # ga
-                                  gb, # gb
-                                  κa, # κa
-                                  κb, # κb
-                                  κr, # κr
-                                  A, #A
-                                  T, # T
-                                  n_points, # n_points
-                                  5.08, # begin_ω
-                                  5.12, # end_ω
-                                  "case_w1_ga{}".format(n_case), # name
-                                  tasks)
+        tasks.append(create_task(N,
+                                 ωa,
+                                 ωb,
+                                 ωr,
+                                 ga,
+                                 gb,
+                                 κa,
+                                 κb,
+                                 κr,
+                                 T,
+                                 A,
+                                 ωd_begin, # begin_ω
+                                 ωd_end, # end_ω
+                                 n_points,
+                                 0, #idx
+                                 "case_w1_ga{}".format(n_case))) #name
+        
         n_case = n_case + 1
+        
         
     ga = 0.1
-    As = np.linspace(1.0e-4,0.1,20)
+    As = np.linspace(1.0e-4,0.01,10)
     
     for A in As:
-        add_simulation_experiment(N, # N
-                                  ωa, # ωa
-                                  ωb, # ωb
-                                  ωr, # ωr
-                                  ga, # ga
-                                  gb, # gb
-                                  κa, # κa
-                                  κb, # κb
-                                  κr, # κr
-                                  A, #A
-                                  T, # T
-                                  n_points, # n_points
-                                  5.08, # begin_ω
-                                  5.12, # end_ω
-                                  "case_w1_A{}".format(n_case), # name
-                                  tasks)
+        tasks.append(create_task(N,
+                                 ωa,
+                                 ωb,
+                                 ωr,
+                                 ga,
+                                 gb,
+                                 κa,
+                                 κb,
+                                 κr,
+                                 T,
+                                 A,
+                                 ωd_begin, # begin_ω
+                                 ωd_end, # end_ω
+                                 n_points,
+                                 0, #idx
+                                 "case_w1_A{}".format(n_case))) #name
         n_case = n_case + 1
-        
-    gas = np.linspace(0.0,0.2,20)
-    A = 0.005
     
-    for ga in gas:
-        add_simulation_experiment(N, # N
-                                  ωa, # ωa
-                                  ωb, # ωb
-                                  ωr, # ωr
-                                  ga, # ga
-                                  gb, # gb
-                                  κa, # κa
-                                  κb, # κb
-                                  κr, # κr
-                                  A, #A
-                                  T, # T
-                                  n_points, # n_points
-                                  5.093, # begin_ω
-                                  5.095, # end_ω
-                                  "case_w1_pico3_ga{}".format(n_case), # name
-                                  tasks)
-        n_case = n_case + 1
-        
-    ga = 0.1
-    As = np.linspace(1.0e-4,0.1,20)
-    
-    for A in As:
-        add_simulation_experiment(N, # N
-                                  ωa, # ωa
-                                  ωb, # ωb
-                                  ωr, # ωr
-                                  ga, # ga
-                                  gb, # gb
-                                  κa, # κa
-                                  κb, # κb
-                                  κr, # κr
-                                  A, #A
-                                  T, # T
-                                  n_points, # n_points
-                                  5.093, # begin_ω
-                                  5.095, # end_ω
-                                  "case_w1_pico3_A{}".format(n_case), # name
-                                  tasks)
-        n_case = n_case + 1
 
-    simulate("2 Cavities 1 Resonator Drive Simulatio",tasks)
+    simulate("2 Cavities 1 Resonator Drive Simulation",tasks)
     
