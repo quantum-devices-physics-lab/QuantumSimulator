@@ -35,6 +35,7 @@ class SimulationData():
         self.a = a
         self.b = b
         self.r = r
+
         
 def create_task(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd_begin,ωd_end,n_points,idx,name):
     return {"N":N,
@@ -94,7 +95,7 @@ def execute(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd_begin,ωd_end,n_points,name,
         
    
     
-    ωds = np.linspace(ωd_begin,ωd_end,n_points)*factor
+    ωds = np.linspace(ωd_begin,ωd_end,n_points)
     for idx,ωd in enumerate(ωds):
         H = drive_Hamiltonian(a,ωa,b,ωb,r,ωr,ga,gb,ωd,A)
         rho_ss = steadystate(H, c_ops)
@@ -227,19 +228,6 @@ def unpack_simulation_data(filename):
     file.close()
     return data
 
-def add_simulation_experiment(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,A,T,n_points,begin_ω,end_ω,name,tasks,factor=2.0*np.pi*1e9):
-    ωa = ωa * factor
-    ωb = ωb * factor
-    ωr = ωr * factor
-    ga = ga *factor
-    gb = gb *factor
-    A = A*factor
-
-    ωds = np.linspace(begin_ω,end_ω,n_points)*factor
-    for idx,ωd in enumerate(ωds):
-        tasks.append(create_task(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd,idx,name))
-    
-
 if __name__ == "__main__":
 
     
@@ -250,18 +238,18 @@ if __name__ == "__main__":
     N = 5
     ωa = 5.1* factor
     ωb = 5.7* factor
-    ωr = 1.0* factor
+    ωr = 4.0* factor
     κa = 1.0e-4
     κb = 1.0e-4
-    κr = 0.01
+    κr = 1.0e-4
     gb = 0.05* factor
-    ωd_begin = 5.08
-    ωd_end = 5.12
+    ωd_begin = 5.04*factor
+    ωd_end = 5.14*factor
     T = 10e-3
-    n_points = 2000
-    n_case = 0    
+    n_points = 1000
+    n_case = 0
     
-    gas = np.linspace(0.0,0.2,10)* factor
+    gas = np.linspace(0.0,0.2,5)* factor
     A = 0.005* factor
     
     for ga in gas:
@@ -285,8 +273,8 @@ if __name__ == "__main__":
         n_case = n_case + 1
         
         
-    ga = 0.1
-    As = np.linspace(1.0e-4,0.01,10)
+    ga = 0.1*factor
+    As = np.linspace(1.0e-4,0.01,5)*factor
     
     for A in As:
         tasks.append(create_task(N,
