@@ -228,6 +228,18 @@ def unpack_simulation_data(filename):
     file.close()
     return data
 
+def add_simulation_experiment(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,A,T,n_points,begin_ω,end_ω,name,tasks,factor=2.0*np.pi*1e9):
+    ωa = ωa * factor
+    ωb = ωb * factor
+    ωr = ωr * factor
+    ga = ga *factor
+    gb = gb *factor
+    A = A*factor
+
+    ωds = np.linspace(begin_ω,end_ω,n_points)*factor
+    for idx,ωd in enumerate(ωds):
+        tasks.append(create_task(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd,idx,name))
+
 if __name__ == "__main__":
 
     
