@@ -281,6 +281,43 @@ def get_graphs_case(dirname,case,n_points=0,n_system):
     
     return (n_points,data.task,rhos,na,purity,data.a,data.b,data.r)
 
+def plot_graph(X,Y,title="plot",xlabel="x",ylabel="y",leg="leg",figsize=(14,7),fontsize=20,savename="fig",color="red",toSave=False,useGivenFig=False,fig=-1,axes=-1):
+    if not useGivenFig:
+        fig, axes = plt.subplots(1,1, figsize=figsize)
+    axes.plot(X, Y, color = color,label=leg, lw=1.5)
+    axes.legend(loc=0,fontsize=20)
+    axes.set_xlabel(xlabel,rotation=0,fontsize= 20)
+    axes.set_ylabel(ylabel,rotation=90,fontsize= 20)
+    axes.set_title(title, fontsize=16)
+    axes.tick_params(axis='both',which='major',labelsize='16')
+    if(toSave):
+        plt.savefig(savename)
+    return fig,axes
+    
+
+def convert_task(task):
+    factor = 2*np.pi*1e9
+    task["A"] = task["A"]/factor
+    task["ωr"] = task["ωr"]/factor
+    task["ωa"] = task["ωa"]/factor
+    task["ωb"] = task["ωb"]/factor
+    task["ωd_begin"] = task["ωd_begin"]/factor
+    task["ωd_end"] = task["ωd_end"]/factor
+    task["ga"] = task["ga"]/factor
+    task["gb"] = task["gb"]/factor
+    return task
+
+def plot_color(X,Y,C,title="plot",xlabel="x",ylabel="y",figsize=(14,7),fontsize=20,colorbarlabel="Arb. Units",savename="fig",toSave=False):
+    fig, axes = plt.subplots(1,1, figsize=figsize)
+    plt.pcolor(X,Y,C)
+    plt.title(title,fontsize=fontsize)
+    plt.xlabel(xlabel,fontsize=fontsize)
+    plt.ylabel(ylabel,fontsize=fontsize)
+    plt.colorbar(label=colorbarlabel)
+    
+    if(toSave):
+        plt.savefig(savename)
+
 if __name__ == "__main__":
 
     
