@@ -1,6 +1,5 @@
 from qutip import *
 import numpy as np
-import matplotlib.pyplot as plt
 import logging
 import datetime
 import time
@@ -8,6 +7,8 @@ import multiprocessing as mp
 import scipy.constants as sc
 import pickle
 import os
+import re
+import sys
 
 
 def calculate_n_th(T,ω):
@@ -239,6 +240,46 @@ def add_simulation_experiment(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,A,T,n_points,begin
     ωds = np.linspace(begin_ω,end_ω,n_points)*factor
     for idx,ωd in enumerate(ωds):
         tasks.append(create_task(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd,idx,name))
+
+def get_graphs_case(dirname,case,n_points=0,n_system):
+    files = []
+    # r=root, d=directories, f = files
+    for r, d, f in os.walk(dirName):
+        for file in f:
+            files.append(os.path.join(r, file))
+            
+    casefiles = []
+
+    for file in files:
+        result = re.search(case,file)
+        if result:
+            casefiles.append(file)
+
+    if n_points == 0 :
+        n_points = len(casefiles)
+
+    rhos = np.array([])
+    na = np.array([])
+    purity = np.array([])
+    
+
+
+    data = unpack_simulation_data(casefiles[0])
+    
+
+
+    ωds = np.linspace(data.task["ωd_begin"],data.task["ωd_end"],data.task["n_points"])
+    for i in range(0,n_points):
+        filename = dirName + "data_case_" + case + "_" + str(i);
+        data = unpack_simulation_data(filename)
+        rhos = np.append(rhos,data.rho)
+        na = np.append(na,data.expect_a)
+        purity = np.append(purity,data.purity)
+    data.task
+    dim = data.task["N"]**n_system
+    #rhos = rhos.reshape(n_points,dim,dim)
+    
+    return (n_points,data.task,rhos,na,purity,data.a,data.b,data.r)
 
 if __name__ == "__main__":
 
