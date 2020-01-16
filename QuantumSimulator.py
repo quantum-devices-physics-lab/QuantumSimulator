@@ -12,11 +12,11 @@ import re
 import sys
 
 
-def calculate_n_th(T,ω):
-    return 1/(np.exp(sc.hbar*ω/(sc.k*T))-1)
+def calculate_n_th(T,w):
+    return 1/(np.exp(sc.hbar*w/(sc.k*T))-1)
 
-def drive_Hamiltonian(a,ωa,b,ωb,r,ωr,ga,gb,ωd,A):
-    H= (ωa-ωd)*a.dag()*a + ωb*b.dag()*b + ωr*r.dag()*r + A*(a.dag()+a) - ga*a.dag()*a*(r.dag()+r) - gb*b.dag()*b*(r.dag()+r)
+def drive_Hamiltonian(a,wa,b,wb,r,wr,ga,gb,wd,A):
+    H= (wa-wd)*a.dag()*a + wb*b.dag()*b + wr*r.dag()*r + A*(a.dag()+a) - ga*a.dag()*a*(r.dag()+r) - gb*b.dag()*b*(r.dag()+r)
     return H
 
 def add_c_ops(c_ops,rate_excitation,rate_relaxation,op):
@@ -39,37 +39,37 @@ class SimulationData():
         self.r = r
 
         
-def create_task(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd_begin,ωd_end,n_points,idx,name):
+def create_task(N,wa,wb,wr,ga,gb,ka,kb,kr,T,A,wd_begin,wd_end,n_points,idx,name):
     return {"N":N,
-            "ωa":ωa,
-            "ωb":ωb,
-            "ωr":ωr,
+            "wa":wa,
+            "wb":wb,
+            "wr":wr,
             "ga":ga,
             "gb":gb,
-            "κa":κa,
-            "κb":κb,
-            "κr":κr,
+            "ka":ka,
+            "kb":kb,
+            "kr":kr,
             "T":T,
             "A":A,
-            "ωd_begin":ωd_begin,
-            "ωd_end":ωd_end,
+            "wd_begin":wd_begin,
+            "wd_end":wd_end,
             "n_points":n_points,
             "idx":idx,
             "name":name}
 
-def execute(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd_begin,ωd_end,n_points,name,dirName):
+def execute(N,wa,wb,wr,ga,gb,ka,kb,kr,T,A,wd_begin,wd_end,n_points,name,dirName):
     
-    n_th_a = calculate_n_th(T,ωa)
-    n_th_b = calculate_n_th(T,ωb)
-    n_th_r = calculate_n_th(T,ωr)
+    n_th_a = calculate_n_th(T,wa)
+    n_th_b = calculate_n_th(T,wb)
+    n_th_r = calculate_n_th(T,wr)
 
-    rate_relaxation_a = κa*(1+n_th_a)
-    rate_relaxation_b = κb*(1+n_th_b)
-    rate_relaxation_r = κr*(1+n_th_r)
+    rate_relaxation_a = ka*(1+n_th_a)
+    rate_relaxation_b = kb*(1+n_th_b)
+    rate_relaxation_r = kr*(1+n_th_r)
 
-    rate_excitation_a = κa*(n_th_a)
-    rate_excitation_b = κb*(n_th_b)
-    rate_excitation_r = κr*(n_th_r)
+    rate_excitation_a = ka*(n_th_a)
+    rate_excitation_b = kb*(n_th_b)
+    rate_excitation_r = kr*(n_th_r)
     
     a = tensor(destroy(N),qeye(N),qeye(N))
     b = tensor(qeye(N),destroy(N),qeye(N))
@@ -97,14 +97,14 @@ def execute(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd_begin,ωd_end,n_points,name,
         
    
     
-    ωds = np.linspace(ωd_begin,ωd_end,n_points)
-    for idx,ωd in enumerate(ωds):
-        H = drive_Hamiltonian(a,ωa,b,ωb,r,ωr,ga,gb,ωd,A)
+    wds = np.linspace(wd_begin,wd_end,n_points)
+    for idx,wd in enumerate(wds):
+        H = drive_Hamiltonian(a,wa,b,wb,r,wr,ga,gb,wd,A)
         rho_ss = steadystate(H, c_ops)
         purity = (rho_ss*rho_ss).tr()
         expect_a = (rho_ss*a).tr()
         
-        data = SimulationData(create_task(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd_begin,ωd_end,n_points,idx,name),
+        data = SimulationData(create_task(N,wa,wb,wr,ga,gb,ka,kb,kr,T,A,wd_begin,wd_end,n_points,idx,name),
                               a,
                               expect_a,
                               purity,
@@ -158,18 +158,18 @@ def simulate(name,tasks):
         pool = mp.Pool(processes = cpu_count)
 
         results = [pool.apply_async(execute,args=(task["N"],
-                                                  task["ωa"],
-                                                  task["ωb"],
-                                                  task["ωr"],
+                                                  task["wa"],
+                                                  task["wb"],
+                                                  task["wr"],
                                                   task["ga"],
                                                   task["gb"],
-                                                  task["κa"],
-                                                  task["κb"],
-                                                  task["κr"],
+                                                  task["ka"],
+                                                  task["kb"],
+                                                  task["kr"],
                                                   task["T"],
                                                   task["A"],
-                                                  task["ωd_begin"],
-                                                  task["ωd_end"],
+                                                  task["wd_begin"],
+                                                  task["wd_end"],
                                                   task["n_points"],
                                                   task["name"],
                                                   dirName),callback=None,error_callback=None) for task in tasks]
@@ -230,19 +230,19 @@ def unpack_simulation_data(filename):
     file.close()
     return data
 
-def add_simulation_experiment(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,A,T,n_points,begin_ω,end_ω,name,tasks,factor=2.0*np.pi*1e9):
-    ωa = ωa * factor
-    ωb = ωb * factor
-    ωr = ωr * factor
+def add_simulation_experiment(N,wa,wb,wr,ga,gb,ka,kb,kr,A,T,n_points,begin_w,end_w,name,tasks,factor=2.0*np.pi*1e9):
+    wa = wa * factor
+    wb = wb * factor
+    wr = wr * factor
     ga = ga *factor
     gb = gb *factor
     A = A*factor
 
-    ωds = np.linspace(begin_ω,end_ω,n_points)*factor
-    for idx,ωd in enumerate(ωds):
-        tasks.append(create_task(N,ωa,ωb,ωr,ga,gb,κa,κb,κr,T,A,ωd,idx,name))
+    wds = np.linspace(begin_w,end_w,n_points)*factor
+    for idx,wd in enumerate(wds):
+        tasks.append(create_task(N,wa,wb,wr,ga,gb,ka,kb,kr,T,A,wd,idx,name))
 
-def get_graphs_case(dirname,case,n_points=0,n_system):
+def get_graphs_case(dirname,case,n_system,n_points=0):
     files = []
     # r=root, d=directories, f = files
     for r, d, f in os.walk(dirName):
@@ -269,7 +269,7 @@ def get_graphs_case(dirname,case,n_points=0,n_system):
     
 
 
-    ωds = np.linspace(data.task["ωd_begin"],data.task["ωd_end"],data.task["n_points"])
+    wds = np.linspace(data.task["wd_begin"],data.task["wd_end"],data.task["n_points"])
     for i in range(0,n_points):
         filename = dirName + "data_case_" + case + "_" + str(i);
         data = unpack_simulation_data(filename)
@@ -299,11 +299,11 @@ def plot_graph(X,Y,title="plot",xlabel="x",ylabel="y",leg="leg",figsize=(14,7),f
 def convert_task(task):
     factor = 2*np.pi*1e9
     task["A"] = task["A"]/factor
-    task["ωr"] = task["ωr"]/factor
-    task["ωa"] = task["ωa"]/factor
-    task["ωb"] = task["ωb"]/factor
-    task["ωd_begin"] = task["ωd_begin"]/factor
-    task["ωd_end"] = task["ωd_end"]/factor
+    task["wr"] = task["wr"]/factor
+    task["wa"] = task["wa"]/factor
+    task["wb"] = task["wb"]/factor
+    task["wd_begin"] = task["wd_begin"]/factor
+    task["wd_end"] = task["wd_end"]/factor
     task["ga"] = task["ga"]/factor
     task["gb"] = task["gb"]/factor
     return task
@@ -326,37 +326,37 @@ if __name__ == "__main__":
     
     factor = 2.0*np.pi*1e9
     
-    N = 5
-    ωa = 5.1* factor
-    ωb = 5.7* factor
-    ωr = 4.0* factor
-    κa = 1.0e-4
-    κb = 1.0e-4
-    κr = 1.0e-4
+    N = 4
+    wa = 5.1* factor
+    wb = 5.7* factor
+    wr = 1.0* factor
+    ka = 1.0e-4
+    kb = 1.0e-4
+    kr = 1.0e-2
     gb = 0.05* factor
-    ωd_begin = 5.04*factor
-    ωd_end = 5.14*factor
+    wd_begin = 5.089*factor
+    wd_end = 5.105*factor
     T = 10e-3
     n_points = 1000
     n_case = 0
     
-    gas = np.linspace(0.0,0.2,5)* factor
-    A = 0.005* factor
+    gas = np.linspace(0.0,0.01,10)* factor
+    A = 0.0001* factor
     
     for ga in gas:
         tasks.append(create_task(N,
-                                 ωa,
-                                 ωb,
-                                 ωr,
+                                 wa,
+                                 wb,
+                                 wr,
                                  ga,
                                  gb,
-                                 κa,
-                                 κb,
-                                 κr,
+                                 ka,
+                                 kb,
+                                 kr,
                                  T,
                                  A,
-                                 ωd_begin, # begin_ω
-                                 ωd_end, # end_ω
+                                 wd_begin, # begin_w
+                                 wd_end, # end_w
                                  n_points,
                                  0, #idx
                                  "case_w1_ga{}".format(n_case))) #name
@@ -364,23 +364,23 @@ if __name__ == "__main__":
         n_case = n_case + 1
         
         
-    ga = 0.1*factor
-    As = np.linspace(1.0e-4,0.01,5)*factor
+    ga = 0.001*factor
+    As = np.linspace(1.0e-5,0.003,10)*factor
     
     for A in As:
         tasks.append(create_task(N,
-                                 ωa,
-                                 ωb,
-                                 ωr,
+                                 wa,
+                                 wb,
+                                 wr,
                                  ga,
                                  gb,
-                                 κa,
-                                 κb,
-                                 κr,
+                                 ka,
+                                 kb,
+                                 kr,
                                  T,
                                  A,
-                                 ωd_begin, # begin_ω
-                                 ωd_end, # end_ω
+                                 wd_begin, # begin_w
+                                 wd_end, # end_w
                                  n_points,
                                  0, #idx
                                  "case_w1_A{}".format(n_case))) #name
