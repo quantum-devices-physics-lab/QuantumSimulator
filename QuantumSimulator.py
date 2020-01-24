@@ -52,7 +52,7 @@ import sys
 
 # Returns the average photon number for a given temperature and frequency.
 def calculate_n_th(T,w):
-    return 1/(np.exp(sc.hbar*w/(sc.k*T))-1)
+    return 1/(np.exp(sc.h*w*1e9/(sc.k*T))-1)
 
 # Return the system hamiltonian.
 def drive_Hamiltonian(a,wa,b,wb,r,wr,ga,gb,wd,A):
@@ -285,13 +285,13 @@ def unpack_simulation_data(filename):
     file.close()
     return data
 
-def add_simulation_experiment(N,wa,wb,wr,ga,gb,ka,kb,kr,A,T,n_points,begin_w,end_w,name,tasks,factor=2.0*np.pi*1e9):
-    wa = wa * factor
-    wb = wb * factor
-    wr = wr * factor
-    ga = ga *factor
-    gb = gb *factor
-    A = A*factor
+def add_simulation_experiment(N,wa,wb,wr,ga,gb,ka,kb,kr,A,T,n_points,begin_w,end_w,name,tasks):
+    wa = wa 
+    wb = wb
+    wr = wr 
+    ga = ga
+    gb = gb
+    A = A
 
     wds = np.linspace(begin_w,end_w,n_points)*factor
     for idx,wd in enumerate(wds):
@@ -357,6 +357,9 @@ def convert_task(task):
     task["wr"] = task["wr"]/factor
     task["wa"] = task["wa"]/factor
     task["wb"] = task["wb"]/factor
+    task["kr"] = task["kr"]/factor
+    task["ka"] = task["ka"]/factor
+    task["kb"] = task["kb"]/factor
     task["wd_begin"] = task["wd_begin"]/factor
     task["wd_end"] = task["wd_end"]/factor
     task["ga"] = task["ga"]/factor
@@ -382,21 +385,21 @@ if __name__ == "__main__":
     factor = 2.0*np.pi*1e9
     
     N = 4
-    wa = 5.1* factor
-    wb = 5.7* factor
-    wr = 1.0* factor
+    wa = 5.1
+    wb = 5.7
+    wr = 1.0
     ka = 1.0e-4
     kb = 1.0e-4
     kr = 1.0e-2
-    gb = 0.05* factor
-    wd_begin = 5.089*factor
-    wd_end = 5.105*factor
+    gb = 0.05
+    wd_begin = wa - 50*1e-6
+    wd_end = wa + 50*1e-6
     T = 10e-3
-    n_points = 1000
+    n_points = 200
     n_case = 0
     
-    gas = np.linspace(0.0,0.01,10)* factor
-    A = 0.0001* factor
+    gas = np.linspace(0.0,2.5,5)*1e-3
+    A = 5*1e-6
     
     for ga in gas:
         tasks.append(create_task(N,
@@ -419,27 +422,6 @@ if __name__ == "__main__":
         n_case = n_case + 1
         
         
-    ga = 0.001*factor
-    As = np.linspace(1.0e-5,0.003,10)*factor
-    
-    for A in As:
-        tasks.append(create_task(N,
-                                 wa,
-                                 wb,
-                                 wr,
-                                 ga,
-                                 gb,
-                                 ka,
-                                 kb,
-                                 kr,
-                                 T,
-                                 A,
-                                 wd_begin, # begin_w
-                                 wd_end, # end_w
-                                 n_points,
-                                 0, #idx
-                                 "case_w1_A{}".format(n_case))) #name
-        n_case = n_case + 1
     
 
     simulate("2 Cavities 1 Resonator Drive Simulation",tasks)
