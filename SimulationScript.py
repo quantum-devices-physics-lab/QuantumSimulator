@@ -1,6 +1,7 @@
 from qutip import *
 import numpy as np
 from QuantumSimulator import *
+import datetime
 
 class Experiment:
     class Data:
@@ -31,22 +32,23 @@ class Experiment:
             self.a = a
             self.b = b
             self.r = r
+    
         
-    def __init__(self,
-                 dirname,
-                 number_of_cases,
-                 n_points,
-                 name_cases,
-                 N,
-                 n_oscillators):
-        self.dirname=dirname
+        
+    def process(self,
+                dirname,
+                number_of_cases,
+                n_points,
+                name_cases,
+                N,
+                n_oscillators):
+        
         self.number_of_cases = number_of_cases
         self.n_points = n_points
         self.name_cases = name_cases
         self.fock = N
         self.n_oscillators = n_oscillators
         
-    def process(self):
         self.purity = {}
         self.expect_a = {}
         self.var = {}
@@ -58,7 +60,7 @@ class Experiment:
             ea = []
             v = []
             for i in range(0,self.number_of_cases):
-                n_points,task,rhos,na,p,a,b,r = get_graphs_case(self.dirname,name_case+str(i),self.fock,n_points=self.n_points)
+                n_points,task,rhos,na,p,a,b,r = get_graphs_case(dirname,name_case+str(i),self.fock,n_points=self.n_points)
                 self.tasks[name_case+str(i)] = task
                 self.rhos[name_case+str(i)] = np.reshape(rhos,(self.n_points,
                                                                self.fock**self.n_oscillators,
@@ -129,6 +131,7 @@ if __name__ == "__main__":
     factor = 2.0*np.pi*1e9
     
     N = 4
+    number_of_oscillators = 3
     wa = 5.1
     wb = 5.7
     wr = 1.0
@@ -139,10 +142,11 @@ if __name__ == "__main__":
     wd_begin = wa - 50*1e-6
     wd_end = wa + 50*1e-6
     T = 10e-3
-    n_points = 50
+    n_points = 1
     n_case = 0
+    number_of_cases = 1
     
-    gas = np.linspace(0.0,2,5) *1e-3
+    gas = np.linspace(0.0,2,number_of_cases) *1e-3
     A = 5e-6
     
     for ga in gas:
@@ -168,7 +172,7 @@ if __name__ == "__main__":
     n_case=0
         
     ga = 2 *1e-3
-    As = np.linspace(0.0,5,5) *1e-6
+    As = np.linspace(0.0,5,number_of_cases) *1e-6
     
     for A in As:
         tasks.append(create_task(N,
@@ -189,9 +193,28 @@ if __name__ == "__main__":
                                  "case_A{}".format(n_case))) #name
         
         n_case = n_case + 1
-        
-        
+      
+    name = "2 Cavities 1 Resonator Drive Simulation"
+    filename = name.replace(" ","_")
+    dirName = "data_{}_{}/".format(filename,datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
+    
+    experiment = Experiment()
     
 
-    simulate("2 Cavities 1 Resonator Drive Simulation",tasks)
+    simulate(name,tasks,dirName)
+    
+    print("Beginning Post-processing");
+    
+    experiment.process(dirName,
+                       number_of_cases,
+                       n_points,
+                       ['ga','A'],
+                       N,
+                       number_of_oscillators)
+    
+    experiment.save(name.replace(" ","_")+'.data')
+    
+    print("Finished Post-processing");
+    
+    
     

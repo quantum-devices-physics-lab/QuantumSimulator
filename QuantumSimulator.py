@@ -48,6 +48,7 @@ import pickle
 import os
 import re
 import sys
+from SimulationScript import Experiment
 
 
 # Returns the average photon number for a given temperature and frequency.
@@ -177,7 +178,7 @@ def execute(N,wa,wb,wr,ga,gb,ka,kb,kr,T,A,wd_begin,wd_end,n_points,name,dirName)
     return data
 
 # The parallel function simulate.
-def simulate(name,tasks):
+def simulate(name,tasks,dirName):
 
     # This is a setup for the logging system
     filename = name.replace(" ","_")
@@ -196,9 +197,6 @@ def simulate(name,tasks):
     
     logger.info("Starting Simulation")
 
-    # Define the name of the folder where the files are going to be stored
-    dirName = "data_{}_{}".format(filename,datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
-    
     # Create target Directory if one does not exist
     if not os.path.exists(dirName):
         os.mkdir(dirName)
@@ -274,6 +272,7 @@ def simulate(name,tasks):
         raise e
     
     logger.info("End of simulation")
+    
 
     handler.close()
     logger.removeHandler(handler)
