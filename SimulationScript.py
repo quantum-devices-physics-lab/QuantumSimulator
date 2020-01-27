@@ -3,6 +3,104 @@ import numpy as np
 from QuantumSimulator import *
 import datetime
 
+
+def unpack_simulation_data(filename):
+    file = open(filename,"rb")
+    data = pickle.load(file)
+    file.close()
+    return data
+
+def add_simulation_experiment(N,wa,wb,wr,ga,gb,ka,kb,kr,A,T,n_points,begin_w,end_w,name,tasks):
+    wa = wa 
+    wb = wb
+    wr = wr 
+    ga = ga
+    gb = gb
+    A = A
+
+    wds = np.linspace(begin_w,end_w,n_points)*factor
+    for idx,wd in enumerate(wds):
+        tasks.append(create_task(N,wa,wb,wr,ga,gb,ka,kb,kr,T,A,wd,idx,name))
+
+
+
+def plot_graph(X,Y,title="plot",xlabel="x",ylabel="y",leg="leg",figsize=(14,7),fontsize=20,savename="fig",color="red",toSave=False,useGivenFig=False,fig=-1,axes=-1):
+    if not useGivenFig:
+        fig, axes = plt.subplots(1,1, figsize=figsize)
+    axes.plot(X, Y, color = color,label=leg, lw=1.5)
+    axes.legend(loc=0,fontsize=20)
+    axes.set_xlabel(xlabel,rotation=0,fontsize= 20)
+    axes.set_ylabel(ylabel,rotation=90,fontsize= 20)
+    axes.set_title(title, fontsize=16)
+    axes.tick_params(axis='both',which='major',labelsize='16')
+    if(toSave):
+        plt.savefig(savename)
+    return fig,axes
+    
+
+def convert_task(task):
+    factor = 2*np.pi*1e9
+    task["A"] = task["A"]/factor
+    task["wr"] = task["wr"]/factor
+    task["wa"] = task["wa"]/factor
+    task["wb"] = task["wb"]/factor
+    task["kr"] = task["kr"]/factor
+    task["ka"] = task["ka"]/factor
+    task["kb"] = task["kb"]/factor
+    task["wd_begin"] = task["wd_begin"]/factor
+    task["wd_end"] = task["wd_end"]/factor
+    task["ga"] = task["ga"]/factor
+    task["gb"] = task["gb"]/factor
+    return task
+
+def plot_color(X,Y,C,title="plot",xlabel="x",ylabel="y",figsize=(14,7),fontsize=20,colorbarlabel="Arb. Units",savename="fig",toSave=False):
+    fig, axes = plt.subplots(1,1, figsize=figsize)
+    plt.pcolor(X,Y,C)
+    plt.title(title,fontsize=fontsize)
+    plt.xlabel(xlabel,fontsize=fontsize)
+    plt.ylabel(ylabel,fontsize=fontsize)
+    plt.colorbar(label=colorbarlabel)
+    
+    if(toSave):
+        plt.savefig(savename)
+
+def get_graphs_case(dirName,case,n_system,n_points=0):
+    files = []
+    # r=root, d=directories, f = files
+    for r, d, f in os.walk(dirName):
+        for file in f:
+            files.append(os.path.join(r, file))
+            
+    casefiles = []
+
+    for file in files:
+        result = re.search(case,file)
+        if result:
+            casefiles.append(file)
+
+    if n_points == 0 :
+        n_points = len(casefiles)
+
+    rhos = np.array([])
+    na = np.array([])
+    purity = np.array([])
+    
+
+
+    data = unpack_simulation_data(casefiles[0])
+    
+
+
+    wds = np.linspace(data.task["wd_begin"],data.task["wd_end"],data.task["n_points"])
+    for i in range(0,n_points):
+        filename = dirName + "data_case_" + case + "_" + str(i);
+        data = unpack_simulation_data(filename)
+        rhos = np.append(rhos,data.rho)
+        na = np.append(na,data.expect_a)
+        purity = np.append(purity,data.purity)
+    
+    return (n_points,data.task,rhos,na,purity,data.a,data.b,data.r)
+
 class Experiment:
     class Data:
         def __init__(self,
@@ -139,14 +237,14 @@ if __name__ == "__main__":
     kb = 1.0e-4
     kr = 1.0e-2
     gb = 0.05
-    wd_begin = wa - 50*1e-6
-    wd_end = wa + 50*1e-6
+    wd_begin = wa - 600*1e-6
+    wd_end = wa + 600*1e-6
     T = 10e-3
-    n_points = 1
+    n_points = 50
     n_case = 0
-    number_of_cases = 1
+    number_of_cases = 5
     
-    gas = np.linspace(0.0,2,number_of_cases) *1e-3
+    gas = np.linspace(0.0,10,number_of_cases) *1e-3
     A = 5e-6
     
     for ga in gas:
