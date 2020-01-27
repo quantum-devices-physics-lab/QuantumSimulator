@@ -86,7 +86,6 @@ def get_graphs_case(dirName,case,n_system,n_points=0):
     purity = np.array([])
     
 
-
     data = unpack_simulation_data(casefiles[0])
     
 
@@ -236,18 +235,20 @@ if __name__ == "__main__":
     ka = 1.0e-4
     kb = 1.0e-4
     kr = 1.0e-2
-    gb = 0.05
-    wd_begin = wa - 600*1e-6
-    wd_end = wa + 600*1e-6
+    gb = 0.010
+    ga = 0.005
+    wd_begin = wa - 50*1e-6
+    wd_end = wa + 50*1e-6
     T = 10e-3
-    n_points = 50
+    n_points = 10
     n_case = 0
     number_of_cases = 5
     
-    gas = np.linspace(0.0,10,number_of_cases) *1e-3
-    A = 5e-6
+    Abs = np.linspace(0.0,3,number_of_cases) *1e-3
+    wd_b = 5.7
+    Aa = 1e-6
     
-    for ga in gas:
+    for Ab in Abs:
         tasks.append(create_task(N,
                                  wa,
                                  wb,
@@ -258,37 +259,14 @@ if __name__ == "__main__":
                                  kb,
                                  kr,
                                  T,
-                                 A,
+                                 Aa,
+                                 Ab,
                                  wd_begin, # begin_w
                                  wd_end, # end_w
+                                 wd_b,
                                  n_points,
                                  0, #idx
-                                 "case_ga{}".format(n_case))) #name
-        
-        n_case = n_case + 1
-        
-    n_case=0
-        
-    ga = 2 *1e-3
-    As = np.linspace(0.0,5,number_of_cases) *1e-6
-    
-    for A in As:
-        tasks.append(create_task(N,
-                                 wa,
-                                 wb,
-                                 wr,
-                                 ga,
-                                 gb,
-                                 ka,
-                                 kb,
-                                 kr,
-                                 T,
-                                 A,
-                                 wd_begin, # begin_w
-                                 wd_end, # end_w
-                                 n_points,
-                                 0, #idx
-                                 "case_A{}".format(n_case))) #name
+                                 "case_Ab{}".format(n_case))) #name task
         
         n_case = n_case + 1
       
@@ -306,7 +284,7 @@ if __name__ == "__main__":
     experiment.process(dirName,
                        number_of_cases,
                        n_points,
-                       ['ga','A'],
+                       ['Ab'],
                        N,
                        number_of_oscillators)
     

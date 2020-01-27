@@ -55,8 +55,8 @@ def calculate_n_th(T,w):
     return 1/(np.exp(sc.h*w*1e9/(sc.k*T))-1)
 
 # Return the system hamiltonian.
-def drive_Hamiltonian(a,wa,b,wb,r,wr,ga,gb,wd,A):
-    H= (wa-wd)*a.dag()*a + wb*b.dag()*b + wr*r.dag()*r + A*(a.dag()+a) - ga*a.dag()*a*(r.dag()+r) - gb*b.dag()*b*(r.dag()+r)
+def drive_Hamiltonian(a,wa,b,wb,r,wr,ga,gb,wd_a,Aa,wd_b,Ab):
+    H= (wa-wd_a)*a.dag()*a + (wb-wd_b)*b.dag()*b + wr*r.dag()*r + Aa*(a.dag()+a) + Ab*(b.dag()+b) - ga*a.dag()*a*(r.dag()+r) - gb*b.dag()*b*(r.dag()+r)
     return H
 
 # Add the collapse operator for the Master equation.
@@ -83,7 +83,7 @@ class SimulationData():
 
 
 # Call this function to create a new task.        
-def create_task(N,wa,wb,wr,ga,gb,ka,kb,kr,T,A,wd_begin,wd_end,n_points,idx,name):
+def create_task(N,wa,wb,wr,ga,gb,ka,kb,kr,T,Aa,Ab,wd_begin,wd_end,wd_b,n_points,idx,name):
     return {"N":N,
             "wa":wa,
             "wb":wb,
@@ -94,16 +94,18 @@ def create_task(N,wa,wb,wr,ga,gb,ka,kb,kr,T,A,wd_begin,wd_end,n_points,idx,name)
             "kb":kb,
             "kr":kr,
             "T":T,
-            "A":A,
+            "Aa":Aa,
+            "Ab":Ab,
             "wd_begin":wd_begin,
             "wd_end":wd_end,
+            "wd_b": wd_b,
             "n_points":n_points,
             "idx":idx,
             "name":name}
 
 
 # Main processing function execute.
-def execute(N,wa,wb,wr,ga,gb,ka,kb,kr,T,A,wd_begin,wd_end,n_points,name,dirName):
+def execute(N,wa,wb,wr,ga,gb,ka,kb,kr,T,Aa,Ab,wd_begin,wd_end,wd_b,n_points,name,dirName):
 
     # Calculate the average number of photons. Used to calculate the excitation and relaxation rate below.
     n_th_a = calculate_n_th(T,wa)
@@ -148,8 +150,8 @@ def execute(N,wa,wb,wr,ga,gb,ka,kb,kr,T,A,wd_begin,wd_end,n_points,name,dirName)
     # For each n_points between ωd_begin and ωd_end, the steady state is calculated.
     # The purity and expectation value of a are also calculated.    
     wds = np.linspace(wd_begin,wd_end,n_points)
-    for idx,wd in enumerate(wds):
-        H = drive_Hamiltonian(a,wa,b,wb,r,wr,ga,gb,wd,A)
+    for idx,wd_a in enumerate(wds):
+        H = drive_Hamiltonian(a,wa,b,wb,r,wr,ga,gb,wd_a,Aa,wd_b,Ab)
 
         # The steadysate function from QuTiP
         rho_ss = steadystate(H, c_ops)
@@ -158,7 +160,7 @@ def execute(N,wa,wb,wr,ga,gb,ka,kb,kr,T,A,wd_begin,wd_end,n_points,name,dirName)
         expect_a = (rho_ss*a).tr()
 
         # Create an instance of SimulationData class
-        data = SimulationData(create_task(N,wa,wb,wr,ga,gb,ka,kb,kr,T,A,wd_begin,wd_end,n_points,idx,name),
+        data = SimulationData(create_task(N,wa,wb,wr,ga,gb,ka,kb,kr,T,Aa,Ab,wd_begin,wd_end,wd_b,n_points,idx,name),
                               a,
                               expect_a,
                               purity,
@@ -223,9 +225,11 @@ def simulate(name,tasks,dirName):
                                                   task["kb"],
                                                   task["kr"],
                                                   task["T"],
-                                                  task["A"],
+                                                  task["Aa"],
+                                                  task["Ab"],
                                                   task["wd_begin"],
                                                   task["wd_end"],
+                                                  task["wd_b"],
                                                   task["n_points"],
                                                   task["name"],
                                                   dirName),callback=None,error_callback=None) for task in tasks]
