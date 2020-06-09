@@ -12,7 +12,31 @@ import re
 import sys
 
 # Returns the average photon number for a given temperature and frequency.
-def calculate_n_th(T,w):
+def calculate_n_th(T,w): 
+    '''
+    Return the number of photons in thermal equilibrium for an harmonic
+    oscillator mode with frequency 'w (GHZ)', at the temperature T (K)
+
+    Parameters
+    ----------
+
+    w : *float* or *array*
+        Frequency of the oscillator IN GHZ.
+
+    T : *float*
+        The temperature in units of K
+
+
+    Returns
+    -------
+
+    n_avg : *float* or *array*
+
+        Return the number of average photons in thermal equilibrium for a
+        an oscillator with the given frequency and temperature.
+
+    We can use the function qutip.utilities.n_thermal
+    '''
     return 1/(np.exp(sc.h*w*1e9/(sc.k*T))-1)
 
 # Return the system hamiltonian.
