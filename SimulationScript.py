@@ -112,6 +112,55 @@ def calculate_n_th(T,w):
 def drive_Hamiltonian(a,wa,ga,wd_a,Aa,
                       b,wb,gb,wd_b,Ab,
                       r,wr):
+    '''
+    Returns a QObj which is the Hamiltonian to be simulated.
+
+    Parameters
+    ----------
+
+    a : *Qobj*
+        Destruction operator of cavity a.
+
+    wa : *float*
+         Frequency of cavity a, in GHz.
+
+    ga : *float*
+         Coupling frequency of cavity a to resonator r, in GHz.
+
+    wd_a : *float*
+           Drive frequency on cavity a, in GHz.
+
+    Aa : *float*
+         Drive amplitude of cavity a, in GHz;
+
+    b : *Qobj*
+        Destruction operator of cavity b.
+
+    wb : *float*
+         Frequency of cavity b, in GHz.
+
+    gb : *float*
+         Coupling frequency of cavity b to resonator r, in GHz.
+
+    wd_b : *float*
+           Drive frequency on cavity b, in GHz.
+
+    Ab : *float*
+         Drive amplitude of cavity b, in GHz;
+
+    r : *Qobj*
+        Destruction operator of cavity r.
+
+    wr : *float*
+         Frequency of cavity b, in GHz.
+
+    Returns
+    -------
+
+    H : *QObj*
+        Hamiltonian to be simulated
+
+    '''
     H= (wa-wd_a)*a.dag()*a + (wb-wd_b)*b.dag()*b + wr*r.dag()*r + Aa*(a.dag()+a) + Ab*(b.dag()+b) - ga*a.dag()*a*(r.dag()+r) - gb*b.dag()*b*(r.dag()+r)
     return H
 
