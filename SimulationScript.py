@@ -66,7 +66,8 @@
 # - In simulate, a new process is created to each sweep. After all sweep are simulated, experiment instance format
 #   the list of data returned and simulate returns the new experiment instance
 # - In run_experiment1, experiment instance is saved
-# 
+#
+#########################################################################################################################
 
 from qutip import *
 import numpy as np
@@ -80,10 +81,9 @@ import os
 import re
 import sys
 
-# Returns the average photon number for a given temperature and frequency.
 def calculate_n_th(T,w): 
     '''
-    Return the number of photons in thermal equilibrium for an harmonic
+    Returns the number of photons in thermal equilibrium for an harmonic
     oscillator mode with frequency 'w (GHZ)', at the temperature T (K)
 
     Parameters
@@ -112,6 +112,55 @@ def calculate_n_th(T,w):
 def drive_Hamiltonian(a,wa,ga,wd_a,Aa,
                       b,wb,gb,wd_b,Ab,
                       r,wr):
+    '''
+    Returns a QObj which is the Hamiltonian to be simulated.
+
+    Parameters
+    ----------
+
+    a : *Qobj*
+        Destruction operator of cavity a.
+
+    wa : *float*
+         Frequency of cavity a, in GHz.
+
+    ga : *float*
+         Coupling frequency of cavity a to resonator r, in GHz.
+
+    wd_a : *float*
+           Drive frequency on cavity a, in GHz.
+
+    Aa : *float*
+         Drive amplitude of cavity a, in GHz;
+
+    b : *Qobj*
+        Destruction operator of cavity b.
+
+    wb : *float*
+         Frequency of cavity b, in GHz.
+
+    gb : *float*
+         Coupling frequency of cavity b to resonator r, in GHz.
+
+    wd_b : *float*
+           Drive frequency on cavity b, in GHz.
+
+    Ab : *float*
+         Drive amplitude of cavity b, in GHz;
+
+    r : *Qobj*
+        Destruction operator of cavity r.
+
+    wr : *float*
+         Frequency of cavity b, in GHz.
+
+    Returns
+    -------
+
+    H : *QObj*
+        Hamiltonian to be simulated
+
+    '''
     H= (wa-wd_a)*a.dag()*a + (wb-wd_b)*b.dag()*b + wr*r.dag()*r + Aa*(a.dag()+a) + Ab*(b.dag()+b) - ga*a.dag()*a*(r.dag()+r) - gb*b.dag()*b*(r.dag()+r)
     return H
 
@@ -119,6 +168,102 @@ def create_parameters(N,T,c_ops,
                       a,n_th_a,rate_relaxation_a,rate_excitation_a,wa,ka,wd_a,Aa,ga,
                       b,n_th_b,rate_relaxation_b,rate_excitation_b,wb,kb,wd_b,Ab,gb,
                       r,n_th_r,rate_relaxation_r,rate_excitation_r,wr,kr):
+    '''
+    Helpful function to create_task. Returns an dictionary with all these parameters.
+
+    Parameters
+    ----------
+
+    N : *int*
+        Fock number
+
+    T : *float*
+        Temperature of the system.
+
+    c_ops : *list*
+            List of QObj which holds all collapse operators.
+
+    a : *Qobj*
+        Destruction operator of cavity a.
+
+    n_th_a : *float*
+             number of average photons in thermal equilibrium for cavity a.
+
+    wa : *float*
+         Frequency of cavity a, in GHz.
+
+    ka : *float*
+         Dissipation rate of cavity a, in GHz.
+
+    ga : *float*
+         Coupling frequency of cavity a to resonator r, in GHz.
+
+    wd_a : *float*
+           Drive frequency on cavity a, in GHz.
+
+    Aa : *float*
+         Drive amplitude of cavity a, in GHz.
+
+    rate_relaxation_a: *float*
+                       Relaxation rate of cavity a, in GHz.
+
+    rate_excitation_a: *float*
+                       Excitation rate of cavity a, in GHz.
+
+    b : *Qobj*
+        Destruction operator of cavity b.
+
+    n_th_b : *float*
+             number of average photons in thermal equilibrium for cavity b.
+
+    wb : *float*
+         Frequency of cavity b, in GHz.
+
+    kb : *float*
+         Dissipation rate of cavity b, in GHz.
+
+    gb : *float*
+         Coupling frequency of cavity b to resonator r, in GHz.
+
+    wd_b : *float*
+           Drive frequency on cavity b, in GHz.
+
+    Ab : *float*
+         Drive amplitude of cavity b, in GHz;
+
+    rate_relaxation_b: *float*
+                       Relaxation rate of cavity b, in GHz.
+
+    rate_excitation_b: *float*
+                       Excitation rate of cavity b, in GHz.
+
+    r : *Qobj*
+        Destruction operator of cavity r.
+
+    n_th_r : *float*
+             number of average photons in thermal equilibrium for cavity r.
+
+    wr : *float*
+         Frequency of cavity r, in GHz.
+
+    kr : *float*
+         Dissipation rate of cavity r, in GHz.
+
+    rate_relaxation_r: *float*
+                       Relaxation rate of cavity r, in GHz.
+
+    rate_excitation_r: *float*
+                       Excitation rate of cavity r, in GHz.
+
+    Returns
+    -------
+
+    *dict*
+        dictionary with all the the parameters
+
+    '''
+
+    
     return {"N":N,
             "c_ops":c_ops,
             "a":a,
@@ -147,8 +292,84 @@ def create_parameters(N,T,c_ops,
             "wd_a":wd_a,
             "wd_b": wd_b}
 
-# Call this function to create a new task.        
+
 def create_task(N,wa,wb,wr,ga,gb,ka,kb,kr,T,Aa,Ab,wd_a,wd_b,n_points,initial_parameter,final_parameter,idx,name):
+    '''
+    The function create_task builds the hamiltonian and the collapse operators, which are returned inside a dictionary.
+    It also adds to the dictionary other all the variables used to build the hamiltonian.
+
+    Parameters
+    ----------
+
+    N : *int*
+        Fock number
+
+    T : *float*
+        Temperature of the system.
+
+    wa : *float*
+         Frequency of cavity a, in GHz.
+
+    ka : *float*
+         Dissipation rate of cavity a, in GHz.
+
+    ga : *float*
+         Coupling frequency of cavity a to resonator r, in GHz.
+
+    wd_a : *float*
+           Drive frequency on cavity a, in GHz.
+
+    Aa : *float*
+         Drive amplitude of cavity a, in GHz.
+
+    wb : *float*
+         Frequency of cavity b, in GHz.
+
+    kb : *float*
+         Dissipation rate of cavity b, in GHz.
+
+    gb : *float*
+         Coupling frequency of cavity b to resonator r, in GHz.
+
+    wd_b : *float*
+           Drive frequency on cavity b, in GHz.
+
+    Ab : *float*
+         Drive amplitude of cavity b, in GHz;
+
+    r : *Qobj*
+        Destruction operator of cavity r.
+
+    wr : *float*
+         Frequency of cavity r, in GHz.
+
+    kr : *float*
+         Dissipation rate of cavity r, in GHz.
+
+    n_points : *int*
+               Number of tasks on the sweep this task is part of.
+
+    idx : *int*
+          Id of this task. Defines its order on the sweep this task is part of.
+
+    initial_parameter : *float* or *int*
+                        First value of the sweep this task is part of.
+
+    final_parameter : *float* or *int*
+                      Final value of the sweep this task is part of.
+
+    name : *string*
+           Name of the sweep this task is part of.
+    
+
+    Returns
+    -------
+
+    *dict*
+        dictionary with all the the parameters and other parameters created in the function.
+
+    '''
+    
     n_th_a = calculate_n_th(T,wa)
     n_th_b = calculate_n_th(T,wb)
     n_th_r = calculate_n_th(T,wr)
@@ -201,6 +422,77 @@ def create_task(N,wa,wb,wr,ga,gb,ka,kb,kr,T,Aa,Ab,wd_a,wd_b,n_points,initial_par
     return task;
 
 def create_wd_a_sweep(N,wa,wb,wr,ga,gb,ka,kb,kr,T,Aa,Ab,wd_a_initial,wd_a_final,wd_b,n_points,name):
+    '''
+    Returns an array of tasks. It is a sweep on the drive frequency at cavity a.
+
+    Parameters
+    ----------
+
+
+    N : *int*
+        Fock number
+
+    T : *float*
+        Temperature of the system.
+
+    wa : *float*
+         Frequency of cavity a, in GHz.
+
+    ka : *float*
+         Dissipation rate of cavity a, in GHz.
+
+    ga : *float*
+         Coupling frequency of cavity a to resonator r, in GHz.
+
+    wd_a : *float*
+           Drive frequency on cavity a, in GHz.
+
+    Aa : *float*
+         Drive amplitude of cavity a, in GHz.
+
+    wb : *float*
+         Frequency of cavity b, in GHz.
+
+    kb : *float*
+         Dissipation rate of cavity b, in GHz.
+
+    gb : *float*
+         Coupling frequency of cavity b to resonator r, in GHz.
+
+    wd_b : *float*
+           Drive frequency on cavity b, in GHz.
+
+    Ab : *float*
+         Drive amplitude of cavity b, in GHz.
+
+    r : *Qobj*
+        Destruction operator of cavity r.
+
+    wr : *float*
+         Frequency of cavity r, in GHz.
+
+    kr : *float*
+         Dissipation rate of cavity r, in GHz.
+
+    n_points : *int*
+               Number of tasks on the sweep.
+
+    wd_a_initial : *float*
+                   Initial value of drive on cavity a.
+
+    wd_a_final : *float*
+                  Final value of drive on cavity a.
+
+    name : *string*
+           Name of this sweep.
+
+    Returns
+    -------
+
+    *list*
+         return a list of tasks
+
+    '''
     sweep = np.array([])
     wd_as = np.linspace(wd_a_initial,wd_a_final,n_points)
     for (idx,wd_a) in enumerate(wd_as):
@@ -364,8 +656,32 @@ class SimulationData():
         self.b = task['b']
         self.r = task['r']
   
-# The parallel function simulate.
 def simulate(logger,experiment,f,datetime_snapshot=""):
+    '''
+    Delegates each sweep to a different process.
+
+    Parameters
+    ----------
+    
+    logger: *Logger*
+            Instance of logger used to log everything happening in the function
+
+    experiment: *Experiment*
+                Instance of Experiment Class. Holds a list of sweeps.
+
+    f : *function pointer*
+        The function that will be executed by the process. Its parameters must be a list, a shared list and a string.
+
+    datetime_snapshot: *string*
+                       Optional parameter used to create a backup folder.
+
+    Returns
+    -------
+
+    experiment : *Experiment*
+                 Instance of Experiment Class with all the results from the processes
+
+    '''  
 
     # Obtain the number of cpus to be used
     task_count = len(experiment.sweeps)
@@ -441,9 +757,31 @@ def simulate(logger,experiment,f,datetime_snapshot=""):
     
     return experiment;
 
-# Main processing function execute.
 def execute(sweep,l,dirName=""):
+    '''
+    Function that run on its own process. Simulate each task in the sweep.
+    The function used is steadystate.
 
+    Parameters
+    ----------
+
+    sweep : *list*
+            List of dictionaries, tasks.
+
+    l : *shared list*
+        A shared list created by an instance of SyncManager
+
+    dirName : *string*
+              Optional parameter which holds an existing folder where an individual SimulationData instance is saved to.
+
+    Returns
+    -------
+
+    data : *SimulationData*
+           Instance of SimulationData which holds the task used to simulate, the density matrix, purity and expected value of a destruction operator
+
+    '''
+    
     for task in sweep:
 
         # The steadysate function from QuTiP
