@@ -470,7 +470,19 @@ def execute(sweep,l,dirName=""):
     return data
 
 
+
 def run_experiment1(name):
+    '''
+    Setup a experiment and save the data. Creates the sweeps and instantiate the Experiment Class which
+    is passed to simulate function. The simulate function returns a new Experiment Class instance which
+    is saved on disk.
+
+    Parameters
+    ----------
+
+    name : *string*
+           Name of the experiment
+    '''
     
     # This is a setup for the logging system
     filename = name.replace(" ","_")    
