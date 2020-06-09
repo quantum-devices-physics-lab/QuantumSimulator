@@ -292,8 +292,84 @@ def create_parameters(N,T,c_ops,
             "wd_a":wd_a,
             "wd_b": wd_b}
 
-# Call this function to create a new task.        
+
 def create_task(N,wa,wb,wr,ga,gb,ka,kb,kr,T,Aa,Ab,wd_a,wd_b,n_points,initial_parameter,final_parameter,idx,name):
+    '''
+    The function create_task builds the hamiltonian and the collapse operators, which are returned inside a dictionary.
+    It also adds to the dictionary other all the variables used to build the hamiltonian.
+
+    Parameters
+    ----------
+
+    N : *int*
+        Fock number
+
+    T : *float*
+        Temperature of the system.
+
+    wa : *float*
+         Frequency of cavity a, in GHz.
+
+    ka : *float*
+         Dissipation rate of cavity a, in GHz.
+
+    ga : *float*
+         Coupling frequency of cavity a to resonator r, in GHz.
+
+    wd_a : *float*
+           Drive frequency on cavity a, in GHz.
+
+    Aa : *float*
+         Drive amplitude of cavity a, in GHz.
+
+    wb : *float*
+         Frequency of cavity b, in GHz.
+
+    kb : *float*
+         Dissipation rate of cavity b, in GHz.
+
+    gb : *float*
+         Coupling frequency of cavity b to resonator r, in GHz.
+
+    wd_b : *float*
+           Drive frequency on cavity b, in GHz.
+
+    Ab : *float*
+         Drive amplitude of cavity b, in GHz;
+
+    r : *Qobj*
+        Destruction operator of cavity r.
+
+    wr : *float*
+         Frequency of cavity r, in GHz.
+
+    kr : *float*
+         Dissipation rate of cavity r, in GHz.
+
+    n_points : *int*
+               Number of tasks on the sweep this task is part of.
+
+    idx : *int*
+          Id of this task. Defines its order on the sweep this task is part of.
+
+    initial_parameter : *float* or *int*
+                        First value of the sweep this task is part of.
+
+    final_parameter : *float* or *int*
+                      Final value of the sweep this task is part of.
+
+    name : *string*
+           Name of the sweep this task is part of.
+    
+
+    Returns
+    -------
+
+    *dict*
+        dictionary with all the the parameters and other parameters created in the function.
+
+    '''
+    
     n_th_a = calculate_n_th(T,wa)
     n_th_b = calculate_n_th(T,wb)
     n_th_r = calculate_n_th(T,wr)
