@@ -168,6 +168,102 @@ def create_parameters(N,T,c_ops,
                       a,n_th_a,rate_relaxation_a,rate_excitation_a,wa,ka,wd_a,Aa,ga,
                       b,n_th_b,rate_relaxation_b,rate_excitation_b,wb,kb,wd_b,Ab,gb,
                       r,n_th_r,rate_relaxation_r,rate_excitation_r,wr,kr):
+    '''
+    Helpful function to create_task. Returns an dictionary with all these parameters.
+
+    Parameters
+    ----------
+
+    N : *int*
+        Fock number
+
+    T : *float*
+        Temperature of the system.
+
+    c_ops : *list*
+            List of QObj which holds all collapse operators.
+
+    a : *Qobj*
+        Destruction operator of cavity a.
+
+    n_th_a : *float*
+             number of average photons in thermal equilibrium for cavity a.
+
+    wa : *float*
+         Frequency of cavity a, in GHz.
+
+    ka : *float*
+         Dissipation rate of cavity a, in GHz.
+
+    ga : *float*
+         Coupling frequency of cavity a to resonator r, in GHz.
+
+    wd_a : *float*
+           Drive frequency on cavity a, in GHz.
+
+    Aa : *float*
+         Drive amplitude of cavity a, in GHz.
+
+    rate_relaxation_a: *float*
+                       Relaxation rate of cavity a, in GHz.
+
+    rate_excitation_a: *float*
+                       Excitation rate of cavity a, in GHz.
+
+    b : *Qobj*
+        Destruction operator of cavity b.
+
+    n_th_b : *float*
+             number of average photons in thermal equilibrium for cavity b.
+
+    wb : *float*
+         Frequency of cavity b, in GHz.
+
+    kb : *float*
+         Dissipation rate of cavity b, in GHz.
+
+    gb : *float*
+         Coupling frequency of cavity b to resonator r, in GHz.
+
+    wd_b : *float*
+           Drive frequency on cavity b, in GHz.
+
+    Ab : *float*
+         Drive amplitude of cavity b, in GHz;
+
+    rate_relaxation_b: *float*
+                       Relaxation rate of cavity b, in GHz.
+
+    rate_excitation_b: *float*
+                       Excitation rate of cavity b, in GHz.
+
+    r : *Qobj*
+        Destruction operator of cavity r.
+
+    n_th_r : *float*
+             number of average photons in thermal equilibrium for cavity r.
+
+    wr : *float*
+         Frequency of cavity r, in GHz.
+
+    kr : *float*
+         Dissipation rate of cavity r, in GHz.
+
+    rate_relaxation_r: *float*
+                       Relaxation rate of cavity r, in GHz.
+
+    rate_excitation_r: *float*
+                       Excitation rate of cavity r, in GHz.
+
+    Returns
+    -------
+
+    *dict*
+        dictionary with all the the parameters
+
+    '''
+
+    
     return {"N":N,
             "c_ops":c_ops,
             "a":a,
