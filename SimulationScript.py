@@ -643,9 +643,40 @@ class Experiment:
             self.expect_a[name_case]=np.reshape(ea,(self.number_of_cases[name_case],self.n_points))
             self.var[name_case]=v
             
-# A class that is actually a struct of the data produced by the simulation.
-# The really important variable is rho. The rest is for management simplicity.
+
 class SimulationData():
+    """
+    A class that is actually a struct of the data produced by the simulation.
+    The really important variable is rho. The rest is for management simplicity.
+
+    Attributes
+    ----------
+
+    name : *str*
+           Name of the task the data is related to.
+
+    task : *dict*
+           The task used to calculate rho.
+
+    rho : *QObj*
+          The density matrix from the simulation.
+
+    purity : *float*
+             Purity of the density matrix.
+
+    expect_a : *complex*
+                Expected value of destruction operator a.
+
+    a : *QObj*
+        Destruction operator of cavity a. 
+
+    b : *QObj*
+        Destruction operator of cavity b.
+
+    r : *QObj*
+        Destruction operator of cavity r.
+    """
+    
     def __init__(self,name,task,expect_a,purity,rho):
         self.name = name
         self.task = task
