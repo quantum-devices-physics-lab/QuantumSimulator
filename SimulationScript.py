@@ -656,8 +656,32 @@ class SimulationData():
         self.b = task['b']
         self.r = task['r']
   
-# The parallel function simulate.
 def simulate(logger,experiment,f,datetime_snapshot=""):
+    '''
+    Delegates each sweep to a different process.
+
+    Parameters
+    ----------
+    
+    logger: *Logger*
+            Instance of logger used to log everything happening in the function
+
+    experiment: *Experiment*
+                Instance of Experiment Class. Holds a list of sweeps.
+
+    f : *function pointer*
+        The function that will be executed by the process. Its parameters must be a list, a shared list and a string.
+
+    datetime_snapshot: *string*
+                       Optional parameter used to create a backup folder.
+
+    Returns
+    -------
+
+    experiment : *Experiment*
+                 Instance of Experiment Class with all the results from the processes
+
+    '''  
 
     # Obtain the number of cpus to be used
     task_count = len(experiment.sweeps)
