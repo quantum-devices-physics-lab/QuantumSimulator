@@ -443,7 +443,30 @@ def simulate(logger,experiment,f,datetime_snapshot=""):
 
 # Main processing function execute.
 def execute(sweep,l,dirName=""):
+    '''
+    Function that run on its own process. Simulate each task in the sweep.
+    The function used is steadystate.
 
+    Parameters
+    ----------
+
+    sweep : *list*
+            List of dictionaries, tasks.
+
+    l : *shared list*
+        A shared list created by an instance of SyncManager
+
+    dirName : *string*
+              Optional parameter which holds an existing folder where an individual SimulationData instance is saved to.
+
+    Returns
+    -------
+
+    data : *SimulationData*
+           Instance of SimulationData which holds the task used to simulate, the density matrix, purity and expected value of a destruction operator
+
+    '''
+    
     for task in sweep:
 
         # The steadysate function from QuTiP
