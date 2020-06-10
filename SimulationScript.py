@@ -502,6 +502,47 @@ def create_wd_a_sweep(N,wa,wb,wr,ga,gb,ka,kb,kr,T,Aa,Ab,wd_a_initial,wd_a_final,
 
 
 class Experiment:
+    """
+    A class that holds all the information of a experiment.
+
+    Attributes
+    ----------
+
+    tagname : *str*
+              Name of the experiment.
+
+    sweeps : *list*
+             List of tasks.
+
+    name_cases : *list*
+                 List of strings. The name of the multiples sweeps.
+
+    number_of_cases : *dict*
+                      A dictionary which the keys are the names of the sweeps and the values are the number of sweeps with that name.
+
+    n_points : *int*
+               Length of the sweeps.
+
+    fock : *int*
+           Fock  number.
+
+    n_oscillators : *int*
+                    Number of oscillators.
+
+    Methods
+    -------
+
+    load(filename)
+        Load the Experiment data from file whose location is filename.
+
+    save(filename)
+        Save the instance to the file located at filename.
+
+    process(l)
+        Process the list of data (Instances of SimulationData). It transform the data from the simulation
+        to a more useful format.
+    """
+    
     def __init__(self,
                  tagname="",
                  sweeps=[],
