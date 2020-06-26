@@ -764,9 +764,6 @@ def simulate(logger,experiment,f,datetime_snapshot=""):
     task_count = len(experiment.sweeps)
     cpu_count = mp.cpu_count()
     
-    manager = mp.Manager()
-    
-    l = manager.list()
 
     dirName = ""
     if datetime_snapshot != "":
@@ -786,7 +783,7 @@ def simulate(logger,experiment,f,datetime_snapshot=""):
         # get a pool object and apply the function execute for each task.
         pool = mp.Pool(processes = cpu_count)
 
-        results = [pool.apply_async(f,args=(sweep,l,dirName)) for sweep in experiment.sweeps]
+        results = [pool.apply_async(f,args=(task)) for task in experiment.sweeps]
 
         # For each hour passed, the progress is logged. The loops continue until all tasks have been finished.
         passedAnHour = 0
@@ -818,9 +815,11 @@ def simulate(logger,experiment,f,datetime_snapshot=""):
 
         pool.close()
         pool.join
-        
+
+
+        l = []
         for ar in results:
-            data = ar.get()
+            l.append(ar.get())
 
         logger.info("Formatting data")
         experiment.process(l)
@@ -834,7 +833,7 @@ def simulate(logger,experiment,f,datetime_snapshot=""):
     
     return experiment;
 
-def execute(sweep,l,dirName=""):
+def execute(task):
     '''
     Function that run on its own process. Simulate each task in the sweep.
     The function used is steadystate.
@@ -859,27 +858,20 @@ def execute(sweep,l,dirName=""):
 
     '''
     
-    for task in sweep:
-
-        # The steadysate function from QuTiP
-        rho_ss = steadystate(task['H'], task['c_ops'])
+    
+    # The steadysate function from QuTiP
+    rho_ss = steadystate(task['H'], task['c_ops'])
         
-        purity = (rho_ss*rho_ss).tr()
-        expect_a = (rho_ss*task['a']).tr()
+    purity = (rho_ss*rho_ss).tr()
+    expect_a = (rho_ss*task['a']).tr()
 
-        data = SimulationData(task['name'],
+    data = SimulationData(task['name'],
                               task,
                               expect_a,
-                              purity,
-                              rho_ss)
-        print("Acquired data {} point {}".format(data.task["name"],data.task["idx"]))
-        l.append(data)
-        
-        if dirName != "":
-            filename = dirName+"/{}_{}".format(task['name'],task['idx'])
-            file = open(filename,"wb")
-            pickle.dump(data,file)
-            file.close()
+                            purity,
+                            rho_ss)
+    print("Acquired data {} point {}".format(data.task["name"],data.task["idx"]))
+    
         
         
     return data
@@ -912,8 +904,8 @@ def run_experiment1(name):
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     
-    sweeps = []
-    N = 2
+    sweeps = np.array([])
+    N = 3
     number_of_oscillators = 3
     wa = 5.1
     wb = 5.7
@@ -925,7 +917,7 @@ def run_experiment1(name):
     wd_begin = wa - 500*1e-6
     wd_end = wa + 500*1e-6
     T = 10e-3
-    n_points = 10
+    n_points = 100
     
     number_of_cases_ga = 10
     
@@ -938,7 +930,7 @@ def run_experiment1(name):
     n_case = 0
     for ga in gas:
         logger.info("Creating sweep {}".format("ga{}".format(n_case)))
-        sweeps.append(create_wd_a_sweep(N,
+        sweeps=np.append(sweeps,create_wd_a_sweep(N,
                                         wa,
                                         wb,
                                         wr,
@@ -957,8 +949,6 @@ def run_experiment1(name):
                                         "ga{}".format(n_case)))
         n_case = n_case + 1
         
-
-    
 
     
     logger.info("Registering experiment")
