@@ -81,6 +81,11 @@ import os
 import re
 import sys
 
+# Qutip and MKL are not working well
+# https://github.com/qutip/qutip/issues/975
+import qutip.settings as qset
+qset.has_mkl = False
+
 def calculate_n_th(T,w): 
     '''
     Returns the number of photons in thermal equilibrium for an harmonic
@@ -908,7 +913,7 @@ def run_experiment1(name):
     logger.addHandler(handler)
     
     sweeps = []
-    N = 3
+    N = 2
     number_of_oscillators = 3
     wa = 5.1
     wb = 5.7
@@ -920,16 +925,14 @@ def run_experiment1(name):
     wd_begin = wa - 500*1e-6
     wd_end = wa + 500*1e-6
     T = 10e-3
-    n_points = 1
+    n_points = 10
     
     number_of_cases_ga = 10
-    number_of_cases_Ab = 5
     
     gas = np.linspace(0,10e-3,number_of_cases_ga)
     Aa = 5.0e-6
-    wd_b = wb - 0.0001
-    Abs = np.linspace(0,40e-6,number_of_cases_Ab)
     Ab = 5.0e-6
+    wd_b = wb - 0.0001
 
  
     n_case = 0
@@ -956,35 +959,14 @@ def run_experiment1(name):
         
 
     
-    ga = 5e-3
-    n_case = 0
-    for Ab in Abs:
-        logger.info("Creating sweep {}".format("Ab{}".format(n_case)))
-        sweeps.append(create_wd_a_sweep(N,
-                                        wa,
-                                        wb,
-                                        wr,
-                                        ga,
-                                        gb,
-                                        ka,
-                                        kb,
-                                        kr,
-                                        T,
-                                        Aa,
-                                        Ab,
-                                        wd_begin,
-                                        wd_end,
-                                        wd_b,
-                                        n_points,
-                                        "Ab{}".format(n_case)))
-        n_case = n_case + 1
+
     
     logger.info("Registering experiment")
     experiment = Experiment(name,
                             sweeps,
                             n_points,
-                            ['ga','Ab'],
-                            [number_of_cases_ga,number_of_cases_Ab],
+                            ['ga'],
+                            [number_of_cases_ga],
                             fock,
                             number_of_oscillators)
 
