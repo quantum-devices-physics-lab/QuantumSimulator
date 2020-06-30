@@ -353,14 +353,14 @@ def simulate_steadystate(task):
 
 class Experiment():
 
-    def __init__(self,f=0,a=0,b=0,r=0,name='',sweeps=np.array([]), sweep_range = np.array([]), sweep_variable=np.array([]),sweep_variable_name='',sweep_name='',units={}):
+    def __init__(self,f=0,a=0,b=0,r=0,name='',sweeps=np.array([]), sweep_variable = np.array([]), main_variable=np.array([]),main_variable_name='',sweep_name='',units={}):
 
         self.name = name
-        self.n_points = len(sweep_range)
+        self.n_points = len(sweep_variable)
         self.sweeps = sweeps
-        self.sweep_range = sweep_range
         self.sweep_variable = sweep_variable
-        self.sweep_variable_name = sweep_variable_name
+        self.main_variable = main_variable
+        self.main_variable_name = main_variable_name
         self.sweep_name = sweep_name
         self.f = f
         self.a = a
@@ -376,13 +376,13 @@ class Experiment():
         Nr = self.tasks[0][0]['Nr']
 
         with open('size_'+filename, mode='w',newline='') as csv_file:
-            fieldnames = ['len_sweep_variable', 'n_points', 'sweep_variable_name', 'sweep_name', 'Na', 'Nb', 'Nr']
+            fieldnames = ['len_main_variable', 'n_points', 'main_variable_name', 'sweep_name', 'Na', 'Nb', 'Nr']
             writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
 
             writer.writeheader()
-            writer.writerow({'len_sweep_variable':len(self.sweep_variable),
+            writer.writerow({'len_main_variable':len(self.main_variable),
                              'n_points': self.n_points,
-                             'sweep_variable_name':self.sweep_variable_name,
+                             'main_variable_name':self.main_variable_name,
                              'sweep_name':self.sweep_name,
                              'Na':Na,
                              'Nb':Nb,
@@ -390,9 +390,9 @@ class Experiment():
 
         with open(filename, mode='w',newline='') as csv_file:
             fieldnames = ['sweep_idx', 
-                          'sweep_variable '+self.sweep_variable_name+' ('+self.units['sweep']+')',
+                          'main_variable '+self.main_variable_name+' ('+self.units['main_variable']+')',
                           'idx', 
-                          'sweep_range '+self.sweep_name+' ('+self.units['sweep_range']+')',
+                          'sweep_variable '+self.sweep_name+' ('+self.units['sweep_variable']+')',
                           'wa ('+self.units['wa']+')',
                           'wb ('+self.units['wb']+')',
                           'wr ('+self.units['wr']+')',
@@ -426,11 +426,11 @@ class Experiment():
             writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
 
             writer.writeheader()
-            for ((sweep_idx,sweep_var),(idx,var)) in itertools.product(enumerate(self.sweep_variable),enumerate(self.sweep_range)):
+            for ((sweep_idx,sweep_var),(idx,var)) in itertools.product(enumerate(self.main_variable),enumerate(self.sweep_variable)):
                 tarefa = {'sweep_idx': sweep_idx,
-                          'sweep_variable '+self.sweep_variable_name+' ('+self.units['sweep']+')':sweep_var,
+                          'main_variable '+self.main_variable_name+' ('+self.units['main_variable']+')':sweep_var,
                           'idx': idx,
-                          'sweep_range '+self.sweep_name+' ('+self.units['sweep_range']+')':var,
+                          'sweep_variable '+self.sweep_name+' ('+self.units['sweep_variable']+')':var,
                           'wa ('+self.units['wa']+')':self.tasks[sweep_idx][idx]['wa'],
                           'wb ('+self.units['wb']+')':self.tasks[sweep_idx][idx]['wb'],
                           'wr ('+self.units['wr']+')':self.tasks[sweep_idx][idx]['wr'],
@@ -471,49 +471,49 @@ class Experiment():
             readCSV = csv.reader(csvfile, delimiter=',')
             header = next(readCSV)
             data = next(readCSV)
-            len_sweep_variable = int(data[0])
+            len_main_variable = int(data[0])
             n_points = int(data[1])
-            sweep_variable_name = data[2] 
+            main_variable_name = data[2] 
             sweep_name = data[3]
             Na = int(data[4])
             Nb = int(data[5])
             Nr = int(data[6])
             
         self.n_points = n_points
-        self.sweep_variable_name = sweep_variable_name
+        self.main_variable_name = main_variable_name
         self.sweep_name = sweep_name
-        self.rhos = np.zeros((len_sweep_variable,self.n_points),dtype=Qobj)
+        self.rhos = np.zeros((len_main_variable,self.n_points),dtype=Qobj)
         
-        self.sweep_range = np.zeros((self.n_points,),dtype=float)
-        self.sweep_variable = np.zeros((len_sweep_variable,),dtype=float)
+        self.sweep_variable = np.zeros((self.n_points,),dtype=float)
+        self.main_variable = np.zeros((len_main_variable,),dtype=float)
         
-        self.expect_a = np.zeros((len_sweep_variable,self.n_points),dtype=complex)
-        self.expect_a_dag = np.zeros((len_sweep_variable,self.n_points),dtype=complex)
-        self.expect_na = np.zeros((len_sweep_variable,self.n_points),dtype=float)
+        self.expect_a = np.zeros((len_main_variable,self.n_points),dtype=complex)
+        self.expect_a_dag = np.zeros((len_main_variable,self.n_points),dtype=complex)
+        self.expect_na = np.zeros((len_main_variable,self.n_points),dtype=float)
 
-        self.expect_b = np.zeros((len_sweep_variable,self.n_points),dtype=complex)
-        self.expect_b_dag = np.zeros((len_sweep_variable,self.n_points),dtype=complex)
-        self.expect_nb = np.zeros((len_sweep_variable,self.n_points),dtype=float)
+        self.expect_b = np.zeros((len_main_variable,self.n_points),dtype=complex)
+        self.expect_b_dag = np.zeros((len_main_variable,self.n_points),dtype=complex)
+        self.expect_nb = np.zeros((len_main_variable,self.n_points),dtype=float)
 
-        self.expect_r = np.zeros((len_sweep_variable,self.n_points),dtype=complex)
-        self.expect_r_dag = np.zeros((len_sweep_variable,self.n_points),dtype=complex)
-        self.expect_nr = np.zeros((len_sweep_variable,self.n_points),dtype=float)
+        self.expect_r = np.zeros((len_main_variable,self.n_points),dtype=complex)
+        self.expect_r_dag = np.zeros((len_main_variable,self.n_points),dtype=complex)
+        self.expect_nr = np.zeros((len_main_variable,self.n_points),dtype=float)
 
-        self.purity = np.zeros((len_sweep_variable,self.n_points),dtype=float)
-        self.purity_a = np.zeros((len_sweep_variable,self.n_points),dtype=float)
-        self.purity_b = np.zeros((len_sweep_variable,self.n_points),dtype=float)
-        self.purity_r = np.zeros((len_sweep_variable,self.n_points),dtype=float)        
+        self.purity = np.zeros((len_main_variable,self.n_points),dtype=float)
+        self.purity_a = np.zeros((len_main_variable,self.n_points),dtype=float)
+        self.purity_b = np.zeros((len_main_variable,self.n_points),dtype=float)
+        self.purity_r = np.zeros((len_main_variable,self.n_points),dtype=float)        
         
-        self.tasks = np.zeros((len(self.sweep_variable),self.n_points),dtype=dict)
+        self.tasks = np.zeros((len(self.main_variable),self.n_points),dtype=dict)
 
         with open(filename) as csvfile:
             readCSV = csv.reader(csvfile, delimiter=',')
             header = next(readCSV)
             for row in readCSV:
                 sweep_idx = int(row[0])
-                sweep_variable = float(row[1])
+                main_variable = float(row[1])
                 idx = int(row[2])
-                sweep_range = float(row[3])
+                sweep_variable = float(row[3])
                 wa = float(row[4])
                 wb = float(row[5])
                 wr = float(row[6])
@@ -585,8 +585,8 @@ class Experiment():
 
                 self.tasks[sweep_idx][idx] = task
                 self.rhos[sweep_idx][idx] = rho
-                self.sweep_range[idx] = sweep_range
-                self.sweep_variable[sweep_idx] = sweep_variable
+                self.sweep_variable[idx] = sweep_variable
+                self.main_variable[sweep_idx] = main_variable
         
 
     def save(self,filename):
@@ -600,9 +600,9 @@ class Experiment():
         file.close()
 
         self.n_points =  data.n_points
-        self.sweep_range =  data.sweep_range
         self.sweep_variable =  data.sweep_variable
-        self.sweep_variable_name =  data.sweep_variable_name
+        self.main_variable =  data.main_variable
+        self.main_variable_name =  data.main_variable_name
         self.sweep_name = data.sweep_name
         self.f = data.f
         self.a = data.a
@@ -642,26 +642,26 @@ class Experiment():
     
     def process(self, l):
 
-        self.rhos = np.zeros((len(self.sweep_variable),self.n_points),dtype=Qobj)
+        self.rhos = np.zeros((len(self.main_variable),self.n_points),dtype=Qobj)
         
-        self.expect_a = np.zeros((len(self.sweep_variable),self.n_points),dtype=complex)
-        self.expect_a_dag = np.zeros((len(self.sweep_variable),self.n_points),dtype=complex)
-        self.expect_na = np.zeros((len(self.sweep_variable),self.n_points),dtype=float)
+        self.expect_a = np.zeros((len(self.main_variable),self.n_points),dtype=complex)
+        self.expect_a_dag = np.zeros((len(self.main_variable),self.n_points),dtype=complex)
+        self.expect_na = np.zeros((len(self.main_variable),self.n_points),dtype=float)
 
-        self.expect_b = np.zeros((len(self.sweep_variable),self.n_points),dtype=complex)
-        self.expect_b_dag = np.zeros((len(self.sweep_variable),self.n_points),dtype=complex)
-        self.expect_nb = np.zeros((len(self.sweep_variable),self.n_points),dtype=float)
+        self.expect_b = np.zeros((len(self.main_variable),self.n_points),dtype=complex)
+        self.expect_b_dag = np.zeros((len(self.main_variable),self.n_points),dtype=complex)
+        self.expect_nb = np.zeros((len(self.main_variable),self.n_points),dtype=float)
 
-        self.expect_r = np.zeros((len(self.sweep_variable),self.n_points),dtype=complex)
-        self.expect_r_dag = np.zeros((len(self.sweep_variable),self.n_points),dtype=complex)
-        self.expect_nr = np.zeros((len(self.sweep_variable),self.n_points),dtype=float)
+        self.expect_r = np.zeros((len(self.main_variable),self.n_points),dtype=complex)
+        self.expect_r_dag = np.zeros((len(self.main_variable),self.n_points),dtype=complex)
+        self.expect_nr = np.zeros((len(self.main_variable),self.n_points),dtype=float)
 
-        self.purity = np.zeros((len(self.sweep_variable),self.n_points),dtype=float)
-        self.purity_a = np.zeros((len(self.sweep_variable),self.n_points),dtype=float)
-        self.purity_b = np.zeros((len(self.sweep_variable),self.n_points),dtype=float)
-        self.purity_r = np.zeros((len(self.sweep_variable),self.n_points),dtype=float)        
+        self.purity = np.zeros((len(self.main_variable),self.n_points),dtype=float)
+        self.purity_a = np.zeros((len(self.main_variable),self.n_points),dtype=float)
+        self.purity_b = np.zeros((len(self.main_variable),self.n_points),dtype=float)
+        self.purity_r = np.zeros((len(self.main_variable),self.n_points),dtype=float)        
         
-        self.tasks = np.zeros((len(self.sweep_variable),self.n_points),dtype=dict)
+        self.tasks = np.zeros((len(self.main_variable),self.n_points),dtype=dict)
         
         sweep_idx=task_idx=0
         for result in l:
@@ -733,8 +733,8 @@ if __name__ == "__main__":
              'T': 'K', 
              'wd_a': 'GHz',
              'wd_b': 'GHz',
-             'sweep':'GHz',
-             'sweep_range':'GHz'}
+             'main_variable':'GHz',
+             'sweep_variable':'GHz'}
 
     wd_as = np.linspace(wd_begin,wd_end,n_points)
 
