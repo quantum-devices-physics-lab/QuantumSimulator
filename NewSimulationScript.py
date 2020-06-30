@@ -1,3 +1,71 @@
+
+# The code simulates in parallel the steady state of an arbitrary Hamiltonian.
+#
+# We utilize QuTiP here to do the heavy calculations. The function used is steadystate,
+# which receives two parameters: A Hamiltonian and an array of colapse operators.
+# The basic simulation process is: To define the Hamiltonian and the colapse operators, to simulate the dynamic
+# in parallel, to save the data returned by the simulation, which is the density matrix.
+# 
+# There is one main data structure, Task, and one main function,
+# execute. Task, a dictionary everything  related to the creation of the Hamiltonian and
+# colapse operatores, for example,  frequencies, dissipations constants, destruction operators etc.
+#
+# Of course, a single task gives just one density state which is not useful that useful Therefore we
+# use an collections of task, called here a sweep. In a sweep all task are holds the same values
+# except for one parameter, for example drive on cavity.
+#
+# A single simulation is usually organized like this:
+#
+# - Create a many number of sweeps.
+# - Each task from all sweeps is passed to execute function which is run on its on process in parallel.
+# - The return data of all sweeps is saved on disk.
+#
+# For example, suppose we are interested the following system: Two coupled harmonic oscillators,
+# a and b. We will sweep the drive on cavity a for different values of the coupling coefficient.
+# On the task, drive on cavity a is named "wd_a" and the coupling coefficient is named "g".
+# We would like to make 3 sweep to 3 different values of g from 0 to 2.
+#
+# Every sweep should be named as the coupling coefficient plus a number, for example "g0".
+# It is important to name sweep the same name used in the task.
+# Here is the example of the sweeps:
+#
+# Sweep "g0"
+# |-----------| |-----------|     |----------|
+# | task 0    | | task 1    |     | task 20  |
+# | wd_a=-5.0 | | wd_a=-4.5 | ... | wd_a=5.0 |
+# | g=0       | | g=0       |     | g=0      |
+# |   ...     | |   ...     |     |   ...    |
+# |-----------| |-----------|     |----------|
+#
+# Sweep "g1"
+# |-----------| |-----------|     |----------|
+# | task 0    | | task 1    |     | task 20  |
+# | wd_a=-5.0 | | wd_a=-4.5 | ... | wd_a=5.0 |
+# | g=1       | | g=1       |     | g=1      |
+# |   ...     | |   ...     |     |   ...    |
+# |-----------| |-----------|     |----------|
+#
+# Sweep "g2"
+# |-----------| |-----------|     |----------|
+# | task 0    | | task 1    |     | task 20  |
+# | wd_a=-5.0 | | wd_a=-4.5 | ... | wd_a=5.0 |
+# | g=2       | | g=2       |     | g=2      |
+# |   ...     | |   ...     |     |   ...    |
+# |-----------| |-----------|     |----------|
+#
+# Another important structure is the Experiment class which holds all the sweeps and format the
+# data returned to be saved. The experiment class is used to access the data simulated to be analyzed.
+#
+# Now that a general picture was drawn, here is the following sequence of function:
+# - In the main, the run_experiment1 function is called
+# - In run_experiment1, the sweeps are created as well as an Experiment class instance called experiment
+# - In run_experiment1, experiment is passed to the simulate function which creates the multiple process
+# - In simulate, a new process is created to each sweep. After all sweep are simulated, experiment instance format
+#   the list of data returned and simulate returns the new experiment instance
+# - In run_experiment1, experiment instance is saved
+#
+#########################################################################################################################
+
 from qutip import *
 import numpy as np
 import scipy.constants as sc
@@ -353,7 +421,7 @@ def simulate_steadystate(task):
 
 class Experiment():
 
-    def __init__(self,f=0,a=0,b=0,r=0,name='',sweeps=np.array([]), sweep_variable = np.array([]), main_variable=np.array([]),main_variable_name='',sweep_name='',units={}):
+    def __init__(self,f=0,a=0,b=0,r=0,name='',sweeps=np.array([]), sweep_variable = np.array([]), main_variable=np.array([]),main_variable_name='',sweep_variable_name='',units={}):
 
         self.name = name
         self.n_points = len(sweep_variable)
@@ -361,7 +429,7 @@ class Experiment():
         self.sweep_variable = sweep_variable
         self.main_variable = main_variable
         self.main_variable_name = main_variable_name
-        self.sweep_name = sweep_name
+        self.sweep_variable_name = sweep_variable_name
         self.f = f
         self.a = a
         self.b = b
@@ -376,14 +444,14 @@ class Experiment():
         Nr = self.tasks[0][0]['Nr']
 
         with open('size_'+filename, mode='w',newline='') as csv_file:
-            fieldnames = ['len_main_variable', 'n_points', 'main_variable_name', 'sweep_name', 'Na', 'Nb', 'Nr']
+            fieldnames = ['len_main_variable', 'n_points', 'main_variable_name', 'sweep_variable_name', 'Na', 'Nb', 'Nr']
             writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
 
             writer.writeheader()
             writer.writerow({'len_main_variable':len(self.main_variable),
                              'n_points': self.n_points,
                              'main_variable_name':self.main_variable_name,
-                             'sweep_name':self.sweep_name,
+                             'sweep_variable_name':self.sweep_variable_name,
                              'Na':Na,
                              'Nb':Nb,
                              'Nr':Nr})
@@ -392,7 +460,7 @@ class Experiment():
             fieldnames = ['sweep_idx', 
                           'main_variable '+self.main_variable_name+' ('+self.units['main_variable']+')',
                           'idx', 
-                          'sweep_variable '+self.sweep_name+' ('+self.units['sweep_variable']+')',
+                          'sweep_variable '+self.sweep_variable_name+' ('+self.units['sweep_variable']+')',
                           'wa ('+self.units['wa']+')',
                           'wb ('+self.units['wb']+')',
                           'wr ('+self.units['wr']+')',
@@ -430,7 +498,7 @@ class Experiment():
                 tarefa = {'sweep_idx': sweep_idx,
                           'main_variable '+self.main_variable_name+' ('+self.units['main_variable']+')':sweep_var,
                           'idx': idx,
-                          'sweep_variable '+self.sweep_name+' ('+self.units['sweep_variable']+')':var,
+                          'sweep_variable '+self.sweep_variable_name+' ('+self.units['sweep_variable']+')':var,
                           'wa ('+self.units['wa']+')':self.tasks[sweep_idx][idx]['wa'],
                           'wb ('+self.units['wb']+')':self.tasks[sweep_idx][idx]['wb'],
                           'wr ('+self.units['wr']+')':self.tasks[sweep_idx][idx]['wr'],
@@ -474,14 +542,14 @@ class Experiment():
             len_main_variable = int(data[0])
             n_points = int(data[1])
             main_variable_name = data[2] 
-            sweep_name = data[3]
+            sweep_variable_name = data[3]
             Na = int(data[4])
             Nb = int(data[5])
             Nr = int(data[6])
             
         self.n_points = n_points
         self.main_variable_name = main_variable_name
-        self.sweep_name = sweep_name
+        self.sweep_variable_name = sweep_variable_name
         self.rhos = np.zeros((len_main_variable,self.n_points),dtype=Qobj)
         
         self.sweep_variable = np.zeros((self.n_points,),dtype=float)
@@ -603,7 +671,7 @@ class Experiment():
         self.sweep_variable =  data.sweep_variable
         self.main_variable =  data.main_variable
         self.main_variable_name =  data.main_variable_name
-        self.sweep_name = data.sweep_name
+        self.sweep_variable_name = data.sweep_variable_name
         self.f = data.f
         self.a = data.a
         self.b = data.b
