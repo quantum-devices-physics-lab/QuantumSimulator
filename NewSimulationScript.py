@@ -353,7 +353,7 @@ def simulate_steadystate(task):
 
 class Experiment():
 
-    def __init__(self,f=0,a=0,b=0,r=0,name='',sweeps=np.array([]), sweep_range = np.array([]), sweep_variable=np.array([]),sweep_variable_name='',units={}):
+    def __init__(self,f=0,a=0,b=0,r=0,name='',sweeps=np.array([]), sweep_range = np.array([]), sweep_variable=np.array([]),sweep_variable_name='',sweep_name='',units={}):
 
         self.name = name
         self.n_points = len(sweep_range)
@@ -361,6 +361,7 @@ class Experiment():
         self.sweep_range = sweep_range
         self.sweep_variable = sweep_variable
         self.sweep_variable_name = sweep_variable_name
+        self.sweep_name = sweep_name
         self.f = f
         self.a = a
         self.b = b
@@ -375,22 +376,23 @@ class Experiment():
         Nr = self.tasks[0][0]['Nr']
 
         with open('size_'+filename, mode='w',newline='') as csv_file:
-            fieldnames = ['len_sweep_variable', 'n_points', 'sweep_variable_name', 'Na', 'Nb', 'Nr']
+            fieldnames = ['len_sweep_variable', 'n_points', 'sweep_variable_name', 'sweep_name', 'Na', 'Nb', 'Nr']
             writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
 
             writer.writeheader()
             writer.writerow({'len_sweep_variable':len(self.sweep_variable),
                              'n_points': self.n_points,
                              'sweep_variable_name':self.sweep_variable_name,
+                             'sweep_name':self.sweep_name,
                              'Na':Na,
                              'Nb':Nb,
                              'Nr':Nr})
 
         with open(filename, mode='w',newline='') as csv_file:
             fieldnames = ['sweep_idx', 
-                          'sweep_variable ('+self.units['sweep']+')',
+                          'sweep_variable '+self.sweep_variable_name+' ('+self.units['sweep']+')',
                           'idx', 
-                          'sweep_range ('+self.units['sweep_range']+')',
+                          'sweep_range '+self.sweep_name+' ('+self.units['sweep_range']+')',
                           'wa ('+self.units['wa']+')',
                           'wb ('+self.units['wb']+')',
                           'wr ('+self.units['wr']+')',
@@ -426,9 +428,9 @@ class Experiment():
             writer.writeheader()
             for ((sweep_idx,sweep_var),(idx,var)) in itertools.product(enumerate(self.sweep_variable),enumerate(self.sweep_range)):
                 tarefa = {'sweep_idx': sweep_idx,
-                          'sweep_variable ('+self.units['sweep']+')':sweep_var,
+                          'sweep_variable '+self.sweep_variable_name+' ('+self.units['sweep']+')':sweep_var,
                           'idx': idx,
-                          'sweep_range ('+self.units['sweep_range']+')':var,
+                          'sweep_range '+self.sweep_name+' ('+self.units['sweep_range']+')':var,
                           'wa ('+self.units['wa']+')':self.tasks[sweep_idx][idx]['wa'],
                           'wb ('+self.units['wb']+')':self.tasks[sweep_idx][idx]['wb'],
                           'wr ('+self.units['wr']+')':self.tasks[sweep_idx][idx]['wr'],
@@ -472,13 +474,14 @@ class Experiment():
             len_sweep_variable = int(data[0])
             n_points = int(data[1])
             sweep_variable_name = data[2] 
-            Na = int(data[3])
-            Nb = int(data[4])
-            Nr = int(data[5])
+            sweep_name = data[3]
+            Na = int(data[4])
+            Nb = int(data[5])
+            Nr = int(data[6])
             
         self.n_points = n_points
         self.sweep_variable_name = sweep_variable_name
-        
+        self.sweep_name = sweep_name
         self.rhos = np.zeros((len_sweep_variable,self.n_points),dtype=Qobj)
         
         self.sweep_range = np.zeros((self.n_points,),dtype=float)
@@ -600,6 +603,7 @@ class Experiment():
         self.sweep_range =  data.sweep_range
         self.sweep_variable =  data.sweep_variable
         self.sweep_variable_name =  data.sweep_variable_name
+        self.sweep_name = data.sweep_name
         self.f = data.f
         self.a = data.a
         self.b = data.b
@@ -763,6 +767,7 @@ if __name__ == "__main__":
                             wd_as,
                             gas,
                             'ga',
+                            'wd_a',
                             units)
 
     experiment.simulate()
