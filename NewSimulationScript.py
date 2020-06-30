@@ -353,7 +353,7 @@ def simulate_steadystate(task):
 
 class Experiment():
 
-    def __init__(self,f=0,a=0,b=0,r=0,name='',sweeps=np.array([]), sweep_range = np.array([]), sweep_variable=np.array([]),sweep_variable_name=''):
+    def __init__(self,f=0,a=0,b=0,r=0,name='',sweeps=np.array([]), sweep_range = np.array([]), sweep_variable=np.array([]),sweep_variable_name='',units={}):
 
         self.name = name
         self.n_points = len(sweep_range)
@@ -365,6 +365,7 @@ class Experiment():
         self.a = a
         self.b = b
         self.r = r
+        self.units = units
         
 
         
@@ -387,35 +388,35 @@ class Experiment():
 
         with open(filename, mode='w',newline='') as csv_file:
             fieldnames = ['sweep_idx', 
-                          'sweep_variable',
+                          'sweep_variable ('+self.units['sweep']+')',
                           'idx', 
-                          'sweep_range',
-                          'wa', 
-                          'wb', 
-                          'wr',
-                          'ka',
-                          'kb',
-                          'kr',
-                          'ga',
-                          'gb',
-                          'T',
-                          'Aa',
-                          'Ab',
-                          'wd_a',
-                          'wd_b',
-                          'expect_a',
-                          'expect_a_dag',
-                          'expect_na',
-                          'expect_b',
-                          'expect_b_dag',
-                          'expect_nb',
-                          'expect_r',
-                          'expect_r_dag',
-                          'expect_nr',
-                          'purity',
-                          'purity_a',
-                          'purity_b',
-                          'purity_r',]
+                          'sweep_range ('+self.units['sweep_range']+')',
+                          'wa ('+self.units['wa']+')',
+                          'wb ('+self.units['wb']+')',
+                          'wr ('+self.units['wr']+')',
+                          'ka ('+self.units['ka']+')',
+                          'kb ('+self.units['ka']+')',
+                          'kr ('+self.units['ka']+')',
+                          'ga ('+self.units['ga']+')',
+                          'gb ('+self.units['ga']+')',
+                          'T ('+self.units['T']+')',
+                          'Aa ('+self.units['Aa']+')',
+                          'Ab ('+self.units['Ab']+')',
+                          'wd_a ('+self.units['wd_a']+')',
+                          'wd_b ('+self.units['wd_b']+')',
+                          'expect_a (Arb. Units)',
+                          'expect_a_dag (Arb. Units)',
+                          'expect_na (Arb. Units)',
+                          'expect_b (Arb. Units)',
+                          'expect_b_dag (Arb. Units)',
+                          'expect_nb (Arb. Units)',
+                          'expect_r (Arb. Units)',
+                          'expect_r_dag (Arb. Units)',
+                          'expect_nr (Arb. Units)',
+                          'purity (Arb. Units)',
+                          'purity_a (Arb. Units)',
+                          'purity_b (Arb. Units)',
+                          'purity_r (Arb. Units)']
 
             for i in range(0,(Na*Nb*Nr)**2):
                 fieldnames.append('rho'+str(i))
@@ -425,35 +426,35 @@ class Experiment():
             writer.writeheader()
             for ((sweep_idx,sweep_var),(idx,var)) in itertools.product(enumerate(self.sweep_variable),enumerate(self.sweep_range)):
                 tarefa = {'sweep_idx': sweep_idx,
-                          'sweep_variable':sweep_var,
+                          'sweep_variable ('+self.units['sweep']+')':sweep_var,
                           'idx': idx,
-                          'sweep_range':var,
-                          'wa':self.tasks[sweep_idx][idx]['wa'],
-                          'wb':self.tasks[sweep_idx][idx]['wb'],
-                          'wr':self.tasks[sweep_idx][idx]['wr'],
-                          'ka':self.tasks[sweep_idx][idx]['ka'],
-                          'kb':self.tasks[sweep_idx][idx]['kb'],
-                          'kr':self.tasks[sweep_idx][idx]['kr'],
-                          'ga':self.tasks[sweep_idx][idx]['ga'],
-                          'gb':self.tasks[sweep_idx][idx]['gb'],
-                          'T':self.tasks[sweep_idx][idx]['T'],
-                          'Aa':self.tasks[sweep_idx][idx]['Aa'],
-                          'Ab':self.tasks[sweep_idx][idx]['Ab'],
-                          'wd_a':self.tasks[sweep_idx][idx]['wd_a'],
-                          'wd_b':self.tasks[sweep_idx][idx]['wd_b'],
-                          'expect_a': self.expect_a[sweep_idx][idx],
-                          'expect_a_dag': self.expect_a_dag[sweep_idx][idx],
-                          'expect_na': self.expect_na[sweep_idx][idx],
-                          'expect_b': self.expect_b[sweep_idx][idx],
-                          'expect_b_dag': self.expect_b_dag[sweep_idx][idx],
-                          'expect_nb': self.expect_nb[sweep_idx][idx],
-                          'expect_r': self.expect_r[sweep_idx][idx],
-                          'expect_r_dag': self.expect_r_dag[sweep_idx][idx],
-                          'expect_nr': self.expect_nr[sweep_idx][idx],
-                          'purity': self.purity[sweep_idx][idx],
-                          'purity_a': self.purity_a[sweep_idx][idx],
-                          'purity_b': self.purity_b[sweep_idx][idx],
-                          'purity_r': self.purity_r[sweep_idx][idx]}
+                          'sweep_range ('+self.units['sweep_range']+')':var,
+                          'wa ('+self.units['wa']+')':self.tasks[sweep_idx][idx]['wa'],
+                          'wb ('+self.units['wb']+')':self.tasks[sweep_idx][idx]['wb'],
+                          'wr ('+self.units['wr']+')':self.tasks[sweep_idx][idx]['wr'],
+                          'ka ('+self.units['ka']+')':self.tasks[sweep_idx][idx]['ka'],
+                          'kb ('+self.units['kb']+')':self.tasks[sweep_idx][idx]['kb'],
+                          'kr ('+self.units['kr']+')':self.tasks[sweep_idx][idx]['kr'],
+                          'ga ('+self.units['ga']+')':self.tasks[sweep_idx][idx]['ga'],
+                          'gb ('+self.units['gb']+')':self.tasks[sweep_idx][idx]['gb'],
+                          'T ('+self.units['T']+')':self.tasks[sweep_idx][idx]['T'],
+                          'Aa ('+self.units['Aa']+')':self.tasks[sweep_idx][idx]['Aa'],
+                          'Ab ('+self.units['Ab']+')':self.tasks[sweep_idx][idx]['Ab'],
+                          'wd_a ('+self.units['wd_a']+')':self.tasks[sweep_idx][idx]['wd_a'],
+                          'wd_b ('+self.units['wd_b']+')':self.tasks[sweep_idx][idx]['wd_b'],
+                          'expect_a (Arb. Units)': self.expect_a[sweep_idx][idx],
+                          'expect_a_dag (Arb. Units)': self.expect_a_dag[sweep_idx][idx],
+                          'expect_na (Arb. Units)': self.expect_na[sweep_idx][idx],
+                          'expect_b (Arb. Units)': self.expect_b[sweep_idx][idx],
+                          'expect_b_dag (Arb. Units)': self.expect_b_dag[sweep_idx][idx],
+                          'expect_nb (Arb. Units)': self.expect_nb[sweep_idx][idx],
+                          'expect_r (Arb. Units)': self.expect_r[sweep_idx][idx],
+                          'expect_r_dag (Arb. Units)': self.expect_r_dag[sweep_idx][idx],
+                          'expect_nr (Arb. Units)': self.expect_nr[sweep_idx][idx],
+                          'purity (Arb. Units)': self.purity[sweep_idx][idx],
+                          'purity_a (Arb. Units)': self.purity_a[sweep_idx][idx],
+                          'purity_b (Arb. Units)': self.purity_b[sweep_idx][idx],
+                          'purity_r (Arb. Units)': self.purity_r[sweep_idx][idx]}
 
                 rho = self.rhos[sweep_idx][idx].full().reshape((Na*Nb*Nr)**2,)
                 for j in range(0,(Na*Nb*Nr)**2):
@@ -606,6 +607,7 @@ class Experiment():
         self.name = data.name
         self.tasks = data.tasks
         self.rhos = data.rhos
+        self.units = data.units
 
         self.expect_a = data.expect_a
         self.expect_a_dag = data.expect_a_dag
@@ -707,12 +709,28 @@ if __name__ == "__main__":
     wd_begin = wa - 500*1e-6
     wd_end = wa + 500*1e-6
     T = 10e-3
-    n_points = 1000
+    n_points = 100
     number_of_cases_ga = 10
     gas = np.linspace(0,10e-3,number_of_cases_ga)
     Aa = 5.0e-6
     Ab = 5.0e-6
     wd_b = wb - 0.0001
+    
+    units = {'wa':'GHz',
+             'wb':'GHz',
+             'wr':'GHz',
+             'ka':'GHz',
+             'kb':'GHz',
+             'kr':'GHz', 
+             'ga':'GHz', 
+             'gb':'GHz', 
+             'Aa':'GHz', 
+             'Ab':'GHz', 
+             'T': 'K', 
+             'wd_a': 'GHz',
+             'wd_b': 'GHz',
+             'sweep':'GHz',
+             'sweep_range':'GHz'}
 
     wd_as = np.linspace(wd_begin,wd_end,n_points)
 
@@ -738,16 +756,17 @@ if __name__ == "__main__":
                                         n_points,
                                         idx))
 
-    name = "test"
+    name = "teste"
     experiment = Experiment(simulate_steadystate,a,b,r,
                             name,
                             sweeps,
                             wd_as,
                             gas,
-                            'ga')
+                            'ga',
+                            units)
 
     experiment.simulate()
 
-    experiment.save('test.data')
+    experiment.save('teste.data')
 
     
