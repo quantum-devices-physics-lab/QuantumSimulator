@@ -1,26 +1,23 @@
+
 # The code simulates in parallel the steady state of an arbitrary Hamiltonian.
 #
 # We utilize QuTiP here to do the heavy calculations. The function used is steadystate,
 # which receives two parameters: A Hamiltonian and an array of colapse operators.
-# The basic process is: To define a Hamiltonian and colapse operators, to simulate
-# in parallel, to save the return of the simulation, the density matrix.
+# The basic simulation process is: To define the Hamiltonian and the colapse operators, to simulate the dynamic
+# in parallel, to save the data returned by the simulation, which is the density matrix.
 # 
-# There are two main data structures, Task and SimulationData, and one main function,
-# execute. Task, a dictionary, holds the Hamiltonian and colapse operators, as well as, everything
-# related to the creation of the Hamiltonian and colapse operatores, for example,
-# frequencies, dissipations constants, destruction operators etc. SimulationData, a class, holds
-# the density state returned by the simulation, as well as, whatever other result
-# the user is interested in, for example, in this script, there is purity and expectated
-# value of a destruction operator.
+# There is one main data structure, Task, and one main function,
+# execute. Task, a dictionary everything  related to the creation of the Hamiltonian and
+# colapse operatores, for example,  frequencies, dissipations constants, destruction operators etc.
 #
-# Of course, a single task gives just one density state which is not useful. An array
-# of tasks, here called a sweep, is the structure that is passed to execute. In a sweep
-# all task are holds the same values except for one parameter, for example drive on cavity.
+# Of course, a single task gives just one density state which is not useful that useful Therefore we
+# use an collections of task, called here a sweep. In a sweep all task are holds the same values
+# except for one parameter, for example drive on cavity.
 #
 # A single simulation is usually organized like this:
 #
 # - Create a many number of sweeps.
-# - Each single sweep is passed to execute function which is run on its on process in parallel.
+# - Each task from all sweeps is passed to execute function which is run on its on process in parallel.
 # - The return data of all sweeps is saved on disk.
 #
 # For example, suppose we are interested the following system: Two coupled harmonic oscillators,
@@ -71,49 +68,20 @@
 
 from qutip import *
 import numpy as np
-import logging
-import datetime
-import time
-import multiprocessing as mp
 import scipy.constants as sc
+from multiprocessing import  freeze_support
 import pickle
 import os
 import re
 import sys
+import csv
+import itertools
 
 # Qutip and MKL are not working well
 # https://github.com/qutip/qutip/issues/975
 import qutip.settings as qset
 qset.has_mkl = False
 
-def calculate_n_th(T,w): 
-    '''
-    Returns the number of photons in thermal equilibrium for an harmonic
-    oscillator mode with frequency 'w (GHZ)', at the temperature T (K)
-
-    Parameters
-    ----------
-
-    w : *float* or *array*
-        Frequency of the oscillator IN GHZ.
-
-    T : *float*
-        The temperature in units of K
-
-
-    Returns
-    -------
-
-    n_avg : *float* or *array*
-
-        Return the number of average photons in thermal equilibrium for a
-        an oscillator with the given frequency and temperature.
-
-    We can use the function qutip.utilities.n_thermal
-    '''
-    return 1/(np.exp(sc.h*w*1e9/(sc.k*T))-1)
-
-# Return the system hamiltonian.
 def drive_Hamiltonian(a,wa,ga,wd_a,Aa,
                       b,wb,gb,wd_b,Ab,
                       r,wr):
@@ -169,30 +137,27 @@ def drive_Hamiltonian(a,wa,ga,wd_a,Aa,
     H= (wa-wd_a)*a.dag()*a + (wb-wd_b)*b.dag()*b + wr*r.dag()*r + Aa*(a.dag()+a) + Ab*(b.dag()+b) - ga*a.dag()*a*(r.dag()+r) - gb*b.dag()*b*(r.dag()+r)
     return H
 
-def create_parameters(N,T,c_ops,
-                      a,n_th_a,rate_relaxation_a,rate_excitation_a,wa,ka,wd_a,Aa,ga,
-                      b,n_th_b,rate_relaxation_b,rate_excitation_b,wb,kb,wd_b,Ab,gb,
-                      r,n_th_r,rate_relaxation_r,rate_excitation_r,wr,kr):
+
+
+def create_task(Na,Nb,Nr,wa,wb,wr,ga,gb,ka,kb,kr,T,Aa,Ab,wd_a,wd_b,idx,sweep_idx):
     '''
-    Helpful function to create_task. Returns an dictionary with all these parameters.
+    The function create_task builds the hamiltonian and the collapse operators, which are returned inside a dictionary.
+    It also adds to the dictionary other all the variables used to build the hamiltonian.
 
     Parameters
     ----------
 
-    N : *int*
-        Fock number
+    Na : *int*
+        Fock number cavity a
+
+    Nb : *int*
+        Fock number cavity b
+
+    Nr : *int*
+        Fock number cavity r
 
     T : *float*
         Temperature of the system.
-
-    c_ops : *list*
-            List of QObj which holds all collapse operators.
-
-    a : *Qobj*
-        Destruction operator of cavity a.
-
-    n_th_a : *float*
-             number of average photons in thermal equilibrium for cavity a.
 
     wa : *float*
          Frequency of cavity a, in GHz.
@@ -209,18 +174,6 @@ def create_parameters(N,T,c_ops,
     Aa : *float*
          Drive amplitude of cavity a, in GHz.
 
-    rate_relaxation_a: *float*
-                       Relaxation rate of cavity a, in GHz.
-
-    rate_excitation_a: *float*
-                       Excitation rate of cavity a, in GHz.
-
-    b : *Qobj*
-        Destruction operator of cavity b.
-
-    n_th_b : *float*
-             number of average photons in thermal equilibrium for cavity b.
-
     wb : *float*
          Frequency of cavity b, in GHz.
 
@@ -236,17 +189,8 @@ def create_parameters(N,T,c_ops,
     Ab : *float*
          Drive amplitude of cavity b, in GHz;
 
-    rate_relaxation_b: *float*
-                       Relaxation rate of cavity b, in GHz.
-
-    rate_excitation_b: *float*
-                       Excitation rate of cavity b, in GHz.
-
     r : *Qobj*
         Destruction operator of cavity r.
-
-    n_th_r : *float*
-             number of average photons in thermal equilibrium for cavity r.
 
     wr : *float*
          Frequency of cavity r, in GHz.
@@ -254,32 +198,42 @@ def create_parameters(N,T,c_ops,
     kr : *float*
          Dissipation rate of cavity r, in GHz.
 
-    rate_relaxation_r: *float*
-                       Relaxation rate of cavity r, in GHz.
+    idx : *int*
+          Id of this task. Defines its order on the sweep this task is part of.
 
-    rate_excitation_r: *float*
-                       Excitation rate of cavity r, in GHz.
+    sweep_idx : *ind*
+           sweep indice
+    
 
     Returns
     -------
 
     *dict*
-        dictionary with all the the parameters
+        dictionary with all the the parameters and other parameters created in the function.
 
     '''
+    n_th_a = utilities.n_thermal(wa*1e9,T*sc.k/sc.h)
+    n_th_b = utilities.n_thermal(wb*1e9,T*sc.k/sc.h)
+    n_th_r = utilities.n_thermal(wr*1e9,T*sc.k/sc.h)    
+
+    rate_relaxation_a = ka*(1+n_th_a)
+    rate_relaxation_b = kb*(1+n_th_b)
+    rate_relaxation_r = kr*(1+n_th_r)
+
+    rate_excitation_a = ka*(n_th_a)
+    rate_excitation_b = kb*(n_th_b)
+    rate_excitation_r = kr*(n_th_r)
 
     
-    return {"N":N,
-            "c_ops":c_ops,
-            "a":a,
+    task = {"Na":Na,
+            "Nb":Nb,
+            "Nr":Nr,
             "n_th_a":n_th_a,
             "rate_relaxation_a":rate_relaxation_a,
             "rate_excitation_a":rate_excitation_a,
-            "b":b,
             "n_th_b":n_th_b,
             "rate_relaxation_b":rate_relaxation_b,
             "rate_excitation_b":rate_excitation_b,
-            "r":r,
             "n_th_r":n_th_r,
             "rate_relaxation_r":rate_relaxation_r,
             "rate_excitation_r":rate_excitation_r,
@@ -295,147 +249,28 @@ def create_parameters(N,T,c_ops,
             "Aa":Aa,
             "Ab":Ab,
             "wd_a":wd_a,
-            "wd_b": wd_b}
+            "wd_b": wd_b}    
 
-
-def create_task(N,wa,wb,wr,ga,gb,ka,kb,kr,T,Aa,Ab,wd_a,wd_b,n_points,initial_parameter,final_parameter,idx,name):
-    '''
-    The function create_task builds the hamiltonian and the collapse operators, which are returned inside a dictionary.
-    It also adds to the dictionary other all the variables used to build the hamiltonian.
-
-    Parameters
-    ----------
-
-    N : *int*
-        Fock number
-
-    T : *float*
-        Temperature of the system.
-
-    wa : *float*
-         Frequency of cavity a, in GHz.
-
-    ka : *float*
-         Dissipation rate of cavity a, in GHz.
-
-    ga : *float*
-         Coupling frequency of cavity a to resonator r, in GHz.
-
-    wd_a : *float*
-           Drive frequency on cavity a, in GHz.
-
-    Aa : *float*
-         Drive amplitude of cavity a, in GHz.
-
-    wb : *float*
-         Frequency of cavity b, in GHz.
-
-    kb : *float*
-         Dissipation rate of cavity b, in GHz.
-
-    gb : *float*
-         Coupling frequency of cavity b to resonator r, in GHz.
-
-    wd_b : *float*
-           Drive frequency on cavity b, in GHz.
-
-    Ab : *float*
-         Drive amplitude of cavity b, in GHz;
-
-    r : *Qobj*
-        Destruction operator of cavity r.
-
-    wr : *float*
-         Frequency of cavity r, in GHz.
-
-    kr : *float*
-         Dissipation rate of cavity r, in GHz.
-
-    n_points : *int*
-               Number of tasks on the sweep this task is part of.
-
-    idx : *int*
-          Id of this task. Defines its order on the sweep this task is part of.
-
-    initial_parameter : *float* or *int*
-                        First value of the sweep this task is part of.
-
-    final_parameter : *float* or *int*
-                      Final value of the sweep this task is part of.
-
-    name : *string*
-           Name of the sweep this task is part of.
-    
-
-    Returns
-    -------
-
-    *dict*
-        dictionary with all the the parameters and other parameters created in the function.
-
-    '''
-    
-    n_th_a = calculate_n_th(T,wa)
-    n_th_b = calculate_n_th(T,wb)
-    n_th_r = calculate_n_th(T,wr)
-
-    rate_relaxation_a = ka*(1+n_th_a)
-    rate_relaxation_b = kb*(1+n_th_b)
-    rate_relaxation_r = kr*(1+n_th_r)
-
-    rate_excitation_a = ka*(n_th_a)
-    rate_excitation_b = kb*(n_th_b)
-    rate_excitation_r = kr*(n_th_r)
-    
-    # The destruction operator
-    a = tensor(destroy(N),qeye(N),qeye(N))
-    b = tensor(qeye(N),destroy(N),qeye(N))
-    r = tensor(qeye(N),qeye(N),destroy(N))
-    
-    c_ops = []
-
-    if rate_excitation_a > 0.0:
-        c_ops.append(np.sqrt(rate_excitation_a)*a.dag())
-
-    if rate_relaxation_a > 0.0:
-        c_ops.append(np.sqrt(rate_relaxation_a)*a)
-        
-    if rate_excitation_b > 0.0:
-        c_ops.append(np.sqrt(rate_excitation_b)*b.dag())
-
-    if rate_relaxation_b > 0.0:
-        c_ops.append(np.sqrt(rate_relaxation_b)*b)
-        
-    if rate_excitation_r > 0.0:
-        c_ops.append(np.sqrt(rate_excitation_r)*r.dag())
-
-    if rate_relaxation_r > 0.0:
-        c_ops.append(np.sqrt(rate_relaxation_r)*r)
-    
-    task = create_parameters(N,T,c_ops,
-                             a,n_th_a,rate_relaxation_a,rate_excitation_a,wa,ka,wd_a,Aa,ga,
-                             b,n_th_b,rate_relaxation_b,rate_excitation_b,wb,kb,wd_b,Ab,gb,
-                             r,n_th_r,rate_relaxation_r,rate_excitation_r,wr,kr)
-    task["n_points"] = n_points;
-    task["initial_parameter"] = initial_parameter;
-    task["final_parameter"] = final_parameter;
     task["idx"] = idx;
-    task["name"] = name;
-    task["H"] = drive_Hamiltonian(task['a'],task['wa'],task['ga'],task['wd_a'],task['Aa'],
-                                  task['b'],task['wb'],task['gb'],task['wd_b'],task['Ab'],
-                                  task['r'],task['wr'])
+    task["sweep_idx"] = sweep_idx;
     return task;
 
-def create_wd_a_sweep(N,wa,wb,wr,ga,gb,ka,kb,kr,T,Aa,Ab,wd_a_initial,wd_a_final,wd_b,n_points,name):
+
+def create_wd_a_sweep(Na,Nb,Nr,wa,wb,wr,ga,gb,ka,kb,kr,T,Aa,Ab,wd_as,wd_b,n_points,sweep_idx):
     '''
     Returns an array of tasks. It is a sweep on the drive frequency at cavity a.
 
     Parameters
     ----------
 
+    Na : *int*
+        Fock number cavity a
 
-    N : *int*
-        Fock number
+    Nb : *int*
+        Fock number cavity b
+
+    Nr : *int*
+        Fock number cavity r
 
     T : *float*
         Temperature of the system.
@@ -499,413 +334,442 @@ def create_wd_a_sweep(N,wa,wb,wr,ga,gb,ka,kb,kr,T,Aa,Ab,wd_a_initial,wd_a_final,
 
     '''
     sweep = np.array([])
-    wd_as = np.linspace(wd_a_initial,wd_a_final,n_points)
+
     for (idx,wd_a) in enumerate(wd_as):
-        task = create_task(N,wa,wb,wr,ga,gb,ka,kb,kr,T,Aa,Ab,wd_a,wd_b,n_points,wd_a_initial,wd_a_final,idx,name)
+        task = create_task(Na,Nb,Nr,wa,wb,wr,ga,gb,ka,kb,kr,T,Aa,Ab,wd_a,wd_b,idx,sweep_idx)
         sweep = np.append(sweep,task)
     return sweep
 
 
-class Experiment:
-    """
-    A class that holds all the information of a experiment.
+def simulate_steadystate(task):
 
-    Attributes
-    ----------
-
-    tagname : *str*
-              Name of the experiment.
-
-    sweeps : *list*
-             List of tasks.
-
-    name_cases : *list*
-                 List of strings. The name of the multiples sweeps.
-
-    number_of_cases : *dict*
-                      A dictionary which the keys are the names of the sweeps and the values are the number of sweeps with that name.
-
-    n_points : *int*
-               Length of the sweeps.
-
-    fock : *int*
-           Fock  number.
-
-    n_oscillators : *int*
-                    Number of oscillators.
-
-    Methods
-    -------
-
-    load(filename)
-        Load the Experiment data from file whose location is filename.
-
-    save(filename)
-        Save the instance to the file located at filename.
-
-    process(l)
-        Process the list of data (Instances of SimulationData). It transform the data from the simulation
-        to a more useful format.
-    """
+    print('sweep {} task {}'.format(task['sweep_idx'],task['idx']))
     
-    def __init__(self,
-                 tagname="",
-                 sweeps=[],
-                 n_points=0,
-                 name_cases=[],
-                 number_of_cases=[],
-                 fock=0,
-                 n_oscillators=0):
-        
-        self.tagname = tagname
-        self.sweeps = np.array(sweeps)
-        self.name_cases = np.array(name_cases)
-        self.number_of_cases = {}
-        for (name_case,number) in zip(self.name_cases,number_of_cases):
-            self.number_of_cases[name_case] = number
-        self.n_points = n_points
-        self.fock = fock
-        self.n_oscillators = n_oscillators
-                 
-    class Data:
-        def __init__(self,
-                     tagname,
-                     name_cases,
-                     number_of_cases,
-                     n_points,
-                     fock,
-                     n_oscillators,
-                     purity,
-                     expect_a,
-                     var,
-                     rhos,
-                     tasks,
-                     a,
-                     b,
-                     r):
-            self.tagname = tagname
-            self.number_of_cases = number_of_cases
-            self.name_cases = name_cases
-            self.n_points = n_points
-            self.fock = fock
-            self.n_oscillators = n_oscillators
-            self.purity = purity
-            self.expect_a = expect_a
-            self.var = var
-            self.rhos = rhos
-            self.tasks = tasks
-            self.a = a
-            self.b = b
-            self.r = r
+    # The destruction operator
+    a = tensor(destroy(task['Na']),qeye(task['Nb']),qeye(task['Nr']))
+    b = tensor(qeye(task['Na']),destroy(task['Nb']),qeye(task['Nr']))
+    r = tensor(qeye(task['Na']),qeye(task['Nb']),destroy(task['Nr']))
 
-    def load(self,filename):
+    c_ops = []
+
+    if task['rate_excitation_a'] > 0.0:
+        c_ops.append(np.sqrt(task['rate_excitation_a'])*a.dag())
+
+    if task['rate_relaxation_a'] > 0.0:
+        c_ops.append(np.sqrt(task['rate_relaxation_a'])*a)
         
+    if task['rate_excitation_b'] > 0.0:
+        c_ops.append(np.sqrt(task['rate_excitation_b'])*b.dag())
+
+    if task['rate_relaxation_b'] > 0.0:
+        c_ops.append(np.sqrt(task['rate_relaxation_b'])*b)
+        
+    if task['rate_excitation_r'] > 0.0:
+        c_ops.append(np.sqrt(task['rate_excitation_r'])*r.dag())
+
+    if task['rate_relaxation_r'] > 0.0:
+        c_ops.append(np.sqrt(task['rate_relaxation_r'])*r)
+
+    H = drive_Hamiltonian(a,task['wa'],task['ga'],task['wd_a'],task['Aa'],
+                          b,task['wb'],task['gb'],task['wd_b'],task['Ab'],
+                          r,task['wr'])
+
+    rho_ss = steadystate(H, c_ops)
+    
+    purity = (rho_ss*rho_ss).tr()
+    purity_a = (rho_ss.ptrace(0)*rho_ss.ptrace(0)).tr()
+    purity_b = (rho_ss.ptrace(1)*rho_ss.ptrace(1)).tr()
+    purity_r = (rho_ss.ptrace(2)*rho_ss.ptrace(2)).tr()
+    
+    expect_a = (rho_ss*a).tr()
+    expect_a_dag = (rho_ss*a.dag()).tr()
+    expect_na = (a*a.dag()*rho_ss).tr()
+    
+    expect_b = (rho_ss*b).tr()
+    expect_b_dag = (rho_ss*b.dag()).tr()
+    expect_nb = (b*b.dag()*rho_ss).tr()
+    
+    expect_r = (rho_ss*r).tr()
+    expect_r_dag = (rho_ss*r.dag()).tr()
+    expect_nr = (r*r.dag()*rho_ss).tr()
+
+    result = {}
+    result['task_idx'] = task['idx']
+    result['sweep_idx'] = task['sweep_idx']
+
+    result['purity'] = purity
+    result['purity_a'] = purity_a
+    result['purity_b'] = purity_b
+    result['purity_r'] = purity_r
+
+    result['expect_a'] = expect_a
+    result['expect_a_dag'] = expect_a_dag
+    result['expect_na'] = expect_na
+
+    result['expect_b'] = expect_b
+    result['expect_b_dag'] = expect_b_dag
+    result['expect_nb'] = expect_nb
+
+    result['expect_r'] = expect_r
+    result['expect_r_dag'] = expect_r_dag
+    result['expect_nr'] = expect_nr
+
+    result['rho_ss'] = rho_ss
+
+    return result
+
+
+class Experiment():
+
+    def __init__(self,f=0,a=0,b=0,r=0,name='',sweeps=np.array([]), sweep_variable = np.array([]), main_variable=np.array([]),main_variable_name='',sweep_variable_name='',units={}):
+
+        self.name = name
+        self.n_points = len(sweep_variable)
+        self.sweeps = sweeps
+        self.sweep_variable = sweep_variable
+        self.main_variable = main_variable
+        self.main_variable_name = main_variable_name
+        self.sweep_variable_name = sweep_variable_name
+        self.f = f
+        self.a = a
+        self.b = b
+        self.r = r
+        self.units = units
+        
+
+        
+    def save_csv(self,filename):
+        Na = self.tasks[0][0]['Na']
+        Nb = self.tasks[0][0]['Nb']
+        Nr = self.tasks[0][0]['Nr']
+
+        with open('size_'+filename, mode='w',newline='') as csv_file:
+            fieldnames = ['len_main_variable', 'n_points', 'main_variable_name', 'sweep_variable_name', 'Na', 'Nb', 'Nr']
+            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+
+            writer.writeheader()
+            writer.writerow({'len_main_variable':len(self.main_variable),
+                             'n_points': self.n_points,
+                             'main_variable_name':self.main_variable_name,
+                             'sweep_variable_name':self.sweep_variable_name,
+                             'Na':Na,
+                             'Nb':Nb,
+                             'Nr':Nr})
+
+        with open(filename, mode='w',newline='') as csv_file:
+            fieldnames = ['sweep_idx', 
+                          'main_variable '+self.main_variable_name+' ('+self.units['main_variable']+')',
+                          'idx', 
+                          'sweep_variable '+self.sweep_variable_name+' ('+self.units['sweep_variable']+')',
+                          'wa ('+self.units['wa']+')',
+                          'wb ('+self.units['wb']+')',
+                          'wr ('+self.units['wr']+')',
+                          'ka ('+self.units['ka']+')',
+                          'kb ('+self.units['ka']+')',
+                          'kr ('+self.units['ka']+')',
+                          'ga ('+self.units['ga']+')',
+                          'gb ('+self.units['ga']+')',
+                          'T ('+self.units['T']+')',
+                          'Aa ('+self.units['Aa']+')',
+                          'Ab ('+self.units['Ab']+')',
+                          'wd_a ('+self.units['wd_a']+')',
+                          'wd_b ('+self.units['wd_b']+')',
+                          'expect_a (Arb. Units)',
+                          'expect_a_dag (Arb. Units)',
+                          'expect_na (Arb. Units)',
+                          'expect_b (Arb. Units)',
+                          'expect_b_dag (Arb. Units)',
+                          'expect_nb (Arb. Units)',
+                          'expect_r (Arb. Units)',
+                          'expect_r_dag (Arb. Units)',
+                          'expect_nr (Arb. Units)',
+                          'purity (Arb. Units)',
+                          'purity_a (Arb. Units)',
+                          'purity_b (Arb. Units)',
+                          'purity_r (Arb. Units)']
+
+            for i in range(0,(Na*Nb*Nr)**2):
+                fieldnames.append('rho'+str(i))
+
+            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+
+            writer.writeheader()
+            for ((sweep_idx,sweep_var),(idx,var)) in itertools.product(enumerate(self.main_variable),enumerate(self.sweep_variable)):
+                tarefa = {'sweep_idx': sweep_idx,
+                          'main_variable '+self.main_variable_name+' ('+self.units['main_variable']+')':sweep_var,
+                          'idx': idx,
+                          'sweep_variable '+self.sweep_variable_name+' ('+self.units['sweep_variable']+')':var,
+                          'wa ('+self.units['wa']+')':self.tasks[sweep_idx][idx]['wa'],
+                          'wb ('+self.units['wb']+')':self.tasks[sweep_idx][idx]['wb'],
+                          'wr ('+self.units['wr']+')':self.tasks[sweep_idx][idx]['wr'],
+                          'ka ('+self.units['ka']+')':self.tasks[sweep_idx][idx]['ka'],
+                          'kb ('+self.units['kb']+')':self.tasks[sweep_idx][idx]['kb'],
+                          'kr ('+self.units['kr']+')':self.tasks[sweep_idx][idx]['kr'],
+                          'ga ('+self.units['ga']+')':self.tasks[sweep_idx][idx]['ga'],
+                          'gb ('+self.units['gb']+')':self.tasks[sweep_idx][idx]['gb'],
+                          'T ('+self.units['T']+')':self.tasks[sweep_idx][idx]['T'],
+                          'Aa ('+self.units['Aa']+')':self.tasks[sweep_idx][idx]['Aa'],
+                          'Ab ('+self.units['Ab']+')':self.tasks[sweep_idx][idx]['Ab'],
+                          'wd_a ('+self.units['wd_a']+')':self.tasks[sweep_idx][idx]['wd_a'],
+                          'wd_b ('+self.units['wd_b']+')':self.tasks[sweep_idx][idx]['wd_b'],
+                          'expect_a (Arb. Units)': self.expect_a[sweep_idx][idx],
+                          'expect_a_dag (Arb. Units)': self.expect_a_dag[sweep_idx][idx],
+                          'expect_na (Arb. Units)': self.expect_na[sweep_idx][idx],
+                          'expect_b (Arb. Units)': self.expect_b[sweep_idx][idx],
+                          'expect_b_dag (Arb. Units)': self.expect_b_dag[sweep_idx][idx],
+                          'expect_nb (Arb. Units)': self.expect_nb[sweep_idx][idx],
+                          'expect_r (Arb. Units)': self.expect_r[sweep_idx][idx],
+                          'expect_r_dag (Arb. Units)': self.expect_r_dag[sweep_idx][idx],
+                          'expect_nr (Arb. Units)': self.expect_nr[sweep_idx][idx],
+                          'purity (Arb. Units)': self.purity[sweep_idx][idx],
+                          'purity_a (Arb. Units)': self.purity_a[sweep_idx][idx],
+                          'purity_b (Arb. Units)': self.purity_b[sweep_idx][idx],
+                          'purity_r (Arb. Units)': self.purity_r[sweep_idx][idx]}
+
+                rho = self.rhos[sweep_idx][idx].full().reshape((Na*Nb*Nr)**2,)
+                for j in range(0,(Na*Nb*Nr)**2):
+                    tarefa['rho'+str(j)] = rho[j]
+
+                writer.writerow(tarefa)
+    
+    def load_csv(self,filename):
+        
+        
+        with open('size_'+filename) as csvfile:
+            readCSV = csv.reader(csvfile, delimiter=',')
+            header = next(readCSV)
+            data = next(readCSV)
+            len_main_variable = int(data[0])
+            n_points = int(data[1])
+            main_variable_name = data[2] 
+            sweep_variable_name = data[3]
+            Na = int(data[4])
+            Nb = int(data[5])
+            Nr = int(data[6])
+            
+        self.n_points = n_points
+        self.main_variable_name = main_variable_name
+        self.sweep_variable_name = sweep_variable_name
+        self.rhos = np.zeros((len_main_variable,self.n_points),dtype=Qobj)
+        
+        self.sweep_variable = np.zeros((self.n_points,),dtype=float)
+        self.main_variable = np.zeros((len_main_variable,),dtype=float)
+        
+        self.expect_a = np.zeros((len_main_variable,self.n_points),dtype=complex)
+        self.expect_a_dag = np.zeros((len_main_variable,self.n_points),dtype=complex)
+        self.expect_na = np.zeros((len_main_variable,self.n_points),dtype=float)
+
+        self.expect_b = np.zeros((len_main_variable,self.n_points),dtype=complex)
+        self.expect_b_dag = np.zeros((len_main_variable,self.n_points),dtype=complex)
+        self.expect_nb = np.zeros((len_main_variable,self.n_points),dtype=float)
+
+        self.expect_r = np.zeros((len_main_variable,self.n_points),dtype=complex)
+        self.expect_r_dag = np.zeros((len_main_variable,self.n_points),dtype=complex)
+        self.expect_nr = np.zeros((len_main_variable,self.n_points),dtype=float)
+
+        self.purity = np.zeros((len_main_variable,self.n_points),dtype=float)
+        self.purity_a = np.zeros((len_main_variable,self.n_points),dtype=float)
+        self.purity_b = np.zeros((len_main_variable,self.n_points),dtype=float)
+        self.purity_r = np.zeros((len_main_variable,self.n_points),dtype=float)        
+        
+        self.tasks = np.zeros((len(self.main_variable),self.n_points),dtype=dict)
+
+        with open(filename) as csvfile:
+            readCSV = csv.reader(csvfile, delimiter=',')
+            header = next(readCSV)
+            for row in readCSV:
+                sweep_idx = int(row[0])
+                main_variable = float(row[1])
+                idx = int(row[2])
+                sweep_variable = float(row[3])
+                wa = float(row[4])
+                wb = float(row[5])
+                wr = float(row[6])
+                ka = float(row[7])
+                kb = float(row[8])
+                kr = float(row[9])
+                ga = float(row[10])
+                gb = float(row[11])
+                T  = float(row[12])
+                Aa = float(row[13])
+                Ab = float(row[14])
+
+                wd_a = float(row[15])
+                wd_b = float(row[16])
+
+                expect_a = complex(row[17])
+                expect_a_dag = complex(row[18])
+                expect_na = float(row[19])
+
+                expect_b = complex(row[20])
+                expect_b_dag = complex(row[21])
+                expect_nb = float(row[22])
+                
+                expect_r = complex(row[23])
+                expect_r_dag = complex(row[24])
+                expect_nr = float(row[25])
+                
+                purity = complex(row[26])
+                purity_a = complex(row[27])
+                purity_b = complex(row[28])
+                purity_r = complex(row[29])
+                
+                rho = Qobj(np.array(row[30:]).reshape((Na*Nb*Nr,Na*Nb*Nr)),dims=[[Na,Nb,Nr],[Na,Nb,Nr]])
+
+                self.expect_a[sweep_idx][idx] = expect_a
+                self.expect_a_dag[sweep_idx][idx] = expect_a_dag
+                self.expect_na[sweep_idx][idx] = expect_na
+                
+                self.expect_b[sweep_idx][idx] = expect_b
+                self.expect_b_dag[sweep_idx][idx] = expect_b_dag
+                self.expect_nb[sweep_idx][idx] = expect_nb
+                
+                self.expect_r[sweep_idx][idx] = expect_r
+                self.expect_r_dag[sweep_idx][idx] = expect_r_dag
+                self.expect_nr[sweep_idx][idx] = expect_nr
+                
+                self.purity[sweep_idx][idx] = np.real(purity)
+                self.purity_a[sweep_idx][idx] = np.real(purity_a)
+                self.purity_b[sweep_idx][idx] = np.real(purity_b)
+                self.purity_r[sweep_idx][idx] = np.real(purity_r)
+                
+                task = {
+                  'wa':wa,
+                  'wb':wb,
+                  'wr':wr,
+                  'ka':ka,
+                  'kb':kb,
+                  'kr':kr,
+                  'ga':ga,
+                  'gb':gb,
+                  'T':T,
+                  'Aa':Aa,
+                  'Ab':Ab,
+                  'wd_a':wd_a,
+                  'wd_b':wd_b,
+                  'Na':Na,
+                  'Nb':Nb,
+                  'Nr':Nr}
+
+                self.tasks[sweep_idx][idx] = task
+                self.rhos[sweep_idx][idx] = rho
+                self.sweep_variable[idx] = sweep_variable
+                self.main_variable[sweep_idx] = main_variable
+        
+
+    def save(self,filename):
+        file = open(filename,"wb")
+        pickle.dump(self,file)
+        file.close()
+        
+    def load(self,filename):
         file = open(filename,"rb")
         data = pickle.load(file)
         file.close()
-        
-        self.tagname = data.tagname
-        self.number_of_cases = data.number_of_cases
-        self.name_cases = data.name_cases
-        self.n_points = data.n_points
-        self.fock = data.fock
-        self.n_oscillators = data.n_oscillators
-        self.purity = data.purity
-        self.expect_a = data.expect_a
-        self.var = data.var
-        self.rhos = data.rhos
-        self.tasks = data.tasks
+
+        self.n_points =  data.n_points
+        self.sweep_variable =  data.sweep_variable
+        self.main_variable =  data.main_variable
+        self.main_variable_name =  data.main_variable_name
+        self.sweep_variable_name = data.sweep_variable_name
+        self.f = data.f
         self.a = data.a
         self.b = data.b
         self.r = data.r
+        self.name = data.name
+        self.tasks = data.tasks
+        self.rhos = data.rhos
+        self.units = data.units
+
+        self.expect_a = data.expect_a
+        self.expect_a_dag = data.expect_a_dag
+        self.expect_na = data.expect_na
+
+        self.expect_b = data.expect_b
+        self.expect_b_dag = data.expect_b_dag
+        self.expect_nb = data.expect_nb
+
+        self.expect_r = data.expect_r
+        self.expect_r_dag = data.expect_r_dag
+        self.expect_nr = data.expect_nr
+
+        self.purity = data.purity
+        self.purity_a = data.purity_a
+        self.purity_b = data.purity_b
+        self.purity_r = data.purity_r
         
-        del data
-    
-    def save(self,filename):
-        data  = Experiment.Data(self.tagname,
-                                self.name_cases,
-                                self.number_of_cases,
-                                self.n_points,
-                                self.fock,
-                                self.n_oscillators,
-                                self.purity,
-                                self.expect_a,
-                                self.var,
-                                self.rhos,
-                                self.tasks,
-                                self.a,
-                                self.b,
-                                self.r)
-        file = open(filename,"wb")
-        pickle.dump(data,file)
-        file.close()
         
-        
-        del data
-            
-    def process(self,l):
-
-        self.purity = {}
-        self.expect_a = {}
-        
-        purity_case = {}
-        expect_a_case = {}
-        
-        self.tasks = {}
-        self.var = {}
-        self.rhos = {}
-
-        for name_case in self.name_cases:
-            self.var[name_case] = np.zeros(self.n_points,dtype=float)
-            for i in range(0,self.number_of_cases[name_case]):
-                purity_case[name_case+str(i)] = np.zeros(self.n_points,dtype=complex)
-                expect_a_case[name_case+str(i)] = np.zeros(self.n_points,dtype=complex)
-                self.rhos[name_case+str(i)] = np.zeros(self.n_points,dtype=Qobj)
-
-        for result in l:
-            self.tasks[result.task['name']] = result.task
-            purity_case[result.task['name']][result.task['idx']] = result.purity
-            expect_a_case[result.task['name']][result.task['idx']] = result.expect_a
-            self.rhos[result.task['name']][result.task['idx']] = result.rho
-
-        self.a = result.a
-        self.b = result.b
-        self.r = result.r
-        
-        for name_case in self.name_cases:
-            pp = []
-            ea = []
-            v = []
-            for i in range(0,self.number_of_cases[name_case]):
-                p = purity_case[name_case+str(i)]
-                na = expect_a_case[name_case+str(i)]
-                task = self.tasks[name_case+str(i)]
-
-                pp=np.append(pp,p)
-                ea = np.append(ea,na)
-                v = np.append(v,task[name_case])
-    
-            self.purity[name_case]=np.reshape(pp,(self.number_of_cases[name_case],self.n_points))
-            self.expect_a[name_case]=np.reshape(ea,(self.number_of_cases[name_case],self.n_points))
-            self.var[name_case]=v
-            
-
-class SimulationData():
-    """
-    A class that is actually a struct of the data produced by the simulation.
-    The really important variable is rho. The rest is for management simplicity.
-
-    Attributes
-    ----------
-
-    name : *str*
-           Name of the task the data is related to.
-
-    task : *dict*
-           The task used to calculate rho.
-
-    rho : *QObj*
-          The density matrix from the simulation.
-
-    purity : *float*
-             Purity of the density matrix.
-
-    expect_a : *complex*
-                Expected value of destruction operator a.
-
-    a : *QObj*
-        Destruction operator of cavity a. 
-
-    b : *QObj*
-        Destruction operator of cavity b.
-
-    r : *QObj*
-        Destruction operator of cavity r.
-    """
-    
-    def __init__(self,name,task,expect_a,purity,rho):
-        self.name = name
-        self.task = task
-        self.rho = rho
-        self.purity  = purity
-        self.expect_a = expect_a
-        self.a = task['a']
-        self.b = task['b']
-        self.r = task['r']
-  
-def simulate(logger,experiment,f,datetime_snapshot=""):
-    '''
-    Delegates each sweep to a different process.
-
-    Parameters
-    ----------
-    
-    logger: *Logger*
-            Instance of logger used to log everything happening in the function
-
-    experiment: *Experiment*
-                Instance of Experiment Class. Holds a list of sweeps.
-
-    f : *function pointer*
-        The function that will be executed by the process. Its parameters must be a list, a shared list and a string.
-
-    datetime_snapshot: *string*
-                       Optional parameter used to create a backup folder.
-
-    Returns
-    -------
-
-    experiment : *Experiment*
-                 Instance of Experiment Class with all the results from the processes
-
-    '''  
-
-    # Obtain the number of cpus to be used
-    task_count = len(experiment.sweeps)
-    cpu_count = mp.cpu_count()
-    
-
-    dirName = ""
-    if datetime_snapshot != "":
-        dirName = "{}_data_backup".format(datetime_snapshot)
-        if not os.path.exists(dirName):
-            os.makedirs(dirName)
-    
-    logger.info("Starting Simulation")
-
-    logger.info("#CPU {}".format(cpu_count))
-
-    # Parellel code
-    try:
-        t_start = time.time()
-        time_1 = []
-
-        # get a pool object and apply the function execute for each task.
-        pool = mp.Pool(processes = cpu_count)
-
-        results = [pool.apply_async(f,args=(task)) for task in experiment.sweeps]
-
-        # For each hour passed, the progress is logged. The loops continue until all tasks have been finished.
-        passedAnHour = 0
-        while True:
-            incomplete_count = sum(1 for x in results if not x.ready())
-
-            if incomplete_count == 0:
-                logger.info("[100.0%] of the simulation calculated")
-                logger.info("All done! Total time: %s"%datetime.timedelta(seconds=int(dif_time)))
-                break
-            else:
-                p = float(task_count - incomplete_count) / task_count * 100
-                dif_time = (time.time()-t_start)
-          
-
-            if(int(dif_time/3600)-passedAnHour > 0):
-                passedAnHour = int(dif_time/3600)
-                logger.info("[%4.1f%%] of the simulations calculated, progress time: %s "%(p,datetime.timedelta(seconds=int(dif_time))) )
-            
-            
-            time.sleep(1)
-
-        
-        # When it is finished, get all the data.
-        while not all([ar.ready() for ar in results]):
-            for ar in results:
-                ar.wait(timeout=0.1)
-
-
-        pool.close()
-        pool.join
-
-
+    def simulate(self,serial=False):
         l = []
-        for ar in results:
-            l.append(ar.get())
-
-        logger.info("Formatting data")
-        experiment.process(l)
-
-    except Exception as e:
-        logger.exception(e)
-        pool.terminate()
-        pool.join()
-        raise e
+        if serial:
+            l = serial_map(self.f,self.sweeps)
+        else:
+            l = parallel_map(self.f,self.sweeps)
+        self.process(l)
 
     
-    return experiment;
+    def process(self, l):
 
-def execute(task):
-    '''
-    Function that run on its own process. Simulate each task in the sweep.
-    The function used is steadystate.
-
-    Parameters
-    ----------
-
-    sweep : *list*
-            List of dictionaries, tasks.
-
-    l : *shared list*
-        A shared list created by an instance of SyncManager
-
-    dirName : *string*
-              Optional parameter which holds an existing folder where an individual SimulationData instance is saved to.
-
-    Returns
-    -------
-
-    data : *SimulationData*
-           Instance of SimulationData which holds the task used to simulate, the density matrix, purity and expected value of a destruction operator
-
-    '''
-    
-    
-    # The steadysate function from QuTiP
-    rho_ss = steadystate(task['H'], task['c_ops'])
+        self.rhos = np.zeros((len(self.main_variable),self.n_points),dtype=Qobj)
         
-    purity = (rho_ss*rho_ss).tr()
-    expect_a = (rho_ss*task['a']).tr()
+        self.expect_a = np.zeros((len(self.main_variable),self.n_points),dtype=complex)
+        self.expect_a_dag = np.zeros((len(self.main_variable),self.n_points),dtype=complex)
+        self.expect_na = np.zeros((len(self.main_variable),self.n_points),dtype=float)
 
-    data = SimulationData(task['name'],
-                              task,
-                              expect_a,
-                            purity,
-                            rho_ss)
-    print("Acquired data {} point {}".format(data.task["name"],data.task["idx"]))
+        self.expect_b = np.zeros((len(self.main_variable),self.n_points),dtype=complex)
+        self.expect_b_dag = np.zeros((len(self.main_variable),self.n_points),dtype=complex)
+        self.expect_nb = np.zeros((len(self.main_variable),self.n_points),dtype=float)
+
+        self.expect_r = np.zeros((len(self.main_variable),self.n_points),dtype=complex)
+        self.expect_r_dag = np.zeros((len(self.main_variable),self.n_points),dtype=complex)
+        self.expect_nr = np.zeros((len(self.main_variable),self.n_points),dtype=float)
+
+        self.purity = np.zeros((len(self.main_variable),self.n_points),dtype=float)
+        self.purity_a = np.zeros((len(self.main_variable),self.n_points),dtype=float)
+        self.purity_b = np.zeros((len(self.main_variable),self.n_points),dtype=float)
+        self.purity_r = np.zeros((len(self.main_variable),self.n_points),dtype=float)        
+        
+        self.tasks = np.zeros((len(self.main_variable),self.n_points),dtype=dict)
+        
+        sweep_idx=task_idx=0
+        for result in l:
+            sweep_idx = result['sweep_idx']
+            task_idx = result['task_idx']
+            
+            self.rhos[sweep_idx][task_idx] = result['rho_ss']
+            
+            self.expect_a[sweep_idx][task_idx] = result['expect_a']
+            self.expect_a_dag[sweep_idx][task_idx] = result['expect_a_dag']
+            self.expect_na[sweep_idx][task_idx] = result['expect_na']
+            
+            self.expect_b[sweep_idx][task_idx] = result['expect_b']
+            self.expect_b_dag[sweep_idx][task_idx] = result['expect_b_dag']
+            self.expect_nb[sweep_idx][task_idx] = result['expect_nb']
+            
+            self.expect_r[sweep_idx][task_idx] = result['expect_r']
+            self.expect_r_dag[sweep_idx][task_idx] = result['expect_r_dag']
+            self.expect_nr[sweep_idx][task_idx] = result['expect_nr']
+
+            self.purity[sweep_idx][task_idx] = result['purity']
+            self.purity_a[sweep_idx][task_idx] = result['purity_a']
+            self.purity_b[sweep_idx][task_idx] = result['purity_b']
+            self.purity_r[sweep_idx][task_idx] = result['purity_r']
+
+        for task in self.sweeps:
+            self.tasks[task['sweep_idx']][task['idx']] = task
+
+
+        del self.sweeps
     
         
-        
-    return data
 
-
-
-def run_experiment1(name):
-    '''
-    Setup a experiment and save the data. Creates the sweeps and instantiate the Experiment Class which
-    is passed to simulate function. The simulate function returns a new Experiment Class instance which
-    is saved on disk.
-
-    Parameters
-    ----------
-
-    name : *string*
-           Name of the experiment
-    '''
     
-    # This is a setup for the logging system
-    filename = name.replace(" ","_")    
-    logging.basicConfig(level=logging.DEBUG) 
-    logger = logging.getLogger(name)
-    
-    datetime_snapshot = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-    
-    handler = logging.FileHandler('{}_{}.log'.format(datetime_snapshot,filename))
-    handler.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    
+
+if __name__ == "__main__":
+    freeze_support()
+
     sweeps = np.array([])
-    N = 3
+    Na=Nb=Nr = 3
     number_of_oscillators = 3
     wa = 5.1
     wb = 5.7
@@ -918,19 +782,36 @@ def run_experiment1(name):
     wd_end = wa + 500*1e-6
     T = 10e-3
     n_points = 100
-    
     number_of_cases_ga = 10
-    
     gas = np.linspace(0,10e-3,number_of_cases_ga)
     Aa = 5.0e-6
     Ab = 5.0e-6
     wd_b = wb - 0.0001
+    
+    units = {'wa':'GHz',
+             'wb':'GHz',
+             'wr':'GHz',
+             'ka':'GHz',
+             'kb':'GHz',
+             'kr':'GHz', 
+             'ga':'GHz', 
+             'gb':'GHz', 
+             'Aa':'GHz', 
+             'Ab':'GHz', 
+             'T': 'K', 
+             'wd_a': 'GHz',
+             'wd_b': 'GHz',
+             'main_variable':'GHz',
+             'sweep_variable':'GHz'}
 
- 
-    n_case = 0
-    for ga in gas:
-        logger.info("Creating sweep {}".format("ga{}".format(n_case)))
-        sweeps=np.append(sweeps,create_wd_a_sweep(N,
+    wd_as = np.linspace(wd_begin,wd_end,n_points)
+
+    a = tensor(destroy(Na),qeye(Nb),qeye(Nr))
+    b = tensor(qeye(Na),destroy(Nb),qeye(Nr))
+    r = tensor(qeye(Na),qeye(Nb),destroy(Nr))    
+
+    for idx,ga in enumerate(gas):
+        sweeps=np.append(sweeps,create_wd_a_sweep(Na,Nb,Nr,
                                         wa,
                                         wb,
                                         wr,
@@ -942,41 +823,23 @@ def run_experiment1(name):
                                         T,
                                         Aa,
                                         Ab,
-                                        wd_begin,
-                                        wd_end,
+                                        wd_as,
                                         wd_b,
                                         n_points,
-                                        "ga{}".format(n_case)))
-        n_case = n_case + 1
-        
+                                        idx))
 
-    
-    logger.info("Registering experiment")
-    experiment = Experiment(name,
+    name = "teste"
+    experiment = Experiment(simulate_steadystate,a,b,r,
+                            name,
                             sweeps,
-                            n_points,
-                            ['ga'],
-                            [number_of_cases_ga],
-                            fock,
-                            number_of_oscillators)
+                            wd_as,
+                            gas,
+                            'ga',
+                            'wd_a',
+                            units)
+
+    experiment.simulate()
+
+    experiment.save('teste.data')
 
     
-    
-    experiment = simulate(logger,experiment,execute)
-    
-    logger.info("Saving full experiment data")
-    filename = "{}_{}.data".format(datetime_snapshot,name.replace(" ","_"))
-    experiment.save(filename)
-    
-    logger.info("End of simulation")
-    handler.close()
-    logger.removeHandler(handler)
-    logging.shutdown()
-
-if __name__ == "__main__":
-    run_experiment1("2 Cavities 1 Resonator Drive Simulation N3 ga and Ab V2")
-    
-    
-
-    
-
