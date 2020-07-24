@@ -76,6 +76,8 @@ import re
 import sys
 import csv
 import itertools
+import psutil
+import time
 
 # Qutip and MKL are not working well
 # https://github.com/qutip/qutip/issues/975
@@ -342,9 +344,9 @@ def create_wd_a_sweep(Na,Nb,Nr,wa,wb,wr,ga,gb,ka,kb,kr,T,Aa,Ab,wd_as,wd_b,n_poin
 
 
 def simulate_steadystate(task):
-
-    print('sweep {} task {}'.format(task['sweep_idx'],task['idx']))
     
+    time_start = time.time()
+
     # The destruction operator
     a = tensor(destroy(task['Na']),qeye(task['Nb']),qeye(task['Nr']))
     b = tensor(qeye(task['Na']),destroy(task['Nb']),qeye(task['Nr']))
@@ -373,8 +375,19 @@ def simulate_steadystate(task):
     H = drive_Hamiltonian(a,task['wa'],task['ga'],task['wd_a'],task['Aa'],
                           b,task['wb'],task['gb'],task['wd_b'],task['Ab'],
                           r,task['wr'])
+    
+    result = {}
+    result['task_idx'] = task['idx']
+    result['sweep_idx'] = task['sweep_idx']
+    
+    del task
 
-    rho_ss = steadystate(H, c_ops)
+    rho_ss = steadystate(H, c_ops, method='iterative-gmres',use_precond=True, 
+                use_rcm=True, tol=1e-15)
+
+    del c_ops
+    del H
+
     
     purity = (rho_ss*rho_ss).tr()
     purity_a = (rho_ss.ptrace(0)*rho_ss.ptrace(0)).tr()
@@ -383,19 +396,19 @@ def simulate_steadystate(task):
     
     expect_a = (rho_ss*a).tr()
     expect_a_dag = (rho_ss*a.dag()).tr()
-    expect_na = (a*a.dag()*rho_ss).tr()
+    expect_na = (a.dag()*a*rho_ss).tr()
     
     expect_b = (rho_ss*b).tr()
     expect_b_dag = (rho_ss*b.dag()).tr()
-    expect_nb = (b*b.dag()*rho_ss).tr()
+    expect_nb = (b.dag()*b*rho_ss).tr()
     
     expect_r = (rho_ss*r).tr()
     expect_r_dag = (rho_ss*r.dag()).tr()
-    expect_nr = (r*r.dag()*rho_ss).tr()
+    expect_nr = (r.dag()*r*rho_ss).tr()
 
-    result = {}
-    result['task_idx'] = task['idx']
-    result['sweep_idx'] = task['sweep_idx']
+    del a
+    del b
+    del r
 
     result['purity'] = purity
     result['purity_a'] = purity_a
@@ -415,6 +428,10 @@ def simulate_steadystate(task):
     result['expect_nr'] = expect_nr
 
     result['rho_ss'] = rho_ss
+    
+    time_end = time.time()
+    
+    print('sweep {} task {}  Time used (seconds) for task: {} percent memory used {}'.format(result['sweep_idx'],result['task_idx'],time_end - time_start,psutil.virtual_memory().percent))
 
     return result
 
@@ -443,7 +460,7 @@ class Experiment():
         Nb = self.tasks[0][0]['Nb']
         Nr = self.tasks[0][0]['Nr']
 
-        with open('size_'+filename, mode='w',newline='') as csv_file:
+        with open(filename+'_header.csv', mode='w',newline='') as csv_file:
             fieldnames = ['len_main_variable', 'n_points', 'main_variable_name', 'sweep_variable_name', 'Na', 'Nb', 'Nr']
             writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
 
@@ -456,7 +473,7 @@ class Experiment():
                              'Nb':Nb,
                              'Nr':Nr})
 
-        with open(filename, mode='w',newline='') as csv_file:
+        with open(filename+'.csv', mode='w',newline='') as csv_file:
             fieldnames = ['sweep_idx', 
                           'main_variable '+self.main_variable_name+' ('+self.units['main_variable']+')',
                           'idx', 
@@ -535,7 +552,7 @@ class Experiment():
     def load_csv(self,filename):
         
         
-        with open('size_'+filename) as csvfile:
+        with open(filename+'_header.csv') as csvfile:
             readCSV = csv.reader(csvfile, delimiter=',')
             header = next(readCSV)
             data = next(readCSV)
@@ -574,7 +591,7 @@ class Experiment():
         
         self.tasks = np.zeros((len(self.main_variable),self.n_points),dtype=dict)
 
-        with open(filename) as csvfile:
+        with open(filename+'.csv') as csvfile:
             readCSV = csv.reader(csvfile, delimiter=',')
             header = next(readCSV)
             for row in readCSV:
@@ -699,13 +716,14 @@ class Experiment():
         self.purity_r = data.purity_r
         
         
-    def simulate(self,serial=False):
+    def simulate(self,serial=False,**kwargs):
         l = []
         if serial:
             l = serial_map(self.f,self.sweeps)
         else:
-            l = parallel_map(self.f,self.sweeps)
-        self.process(l)
+            l = parallel_map(self.f,self.sweeps,**kwargs)
+        
+        return l
 
     
     def process(self, l):
@@ -765,27 +783,32 @@ class Experiment():
 
     
 
-if __name__ == "__main__":
-    freeze_support()
+
+    
+def simulation1mk():
+    time_start =time.time()
+    
+    print('Configuring tasks')
 
     sweeps = np.array([])
-    Na=Nb=Nr = 3
-    number_of_oscillators = 3
+    Na= 4
+    Nb = 4
+    Nr = 4
     wa = 5.1
     wb = 5.7
-    wr = 1.0
-    ka = 1.0e-4
-    kb = 1.0e-4
-    kr = 10.0e-3
-    gb = 5e-3
-    wd_begin = wa - 500*1e-6
-    wd_end = wa + 500*1e-6
-    T = 10e-3
-    n_points = 100
-    number_of_cases_ga = 10
-    gas = np.linspace(0,10e-3,number_of_cases_ga)
+    wr = 0.1
+    ka = kb = 1.0e-4
+    kr = 5.0e-4
+    gb = 4e-3
+    ga = 6e-3
+    wd_begin = wa - 50*1e-6-360e-6
+    wd_end = wa + 50*1e-6-360e-6
+    T = 1e-3
+    n_points = 1000
+    number_of_cases_Ab = 10
+    Abs = np.linspace(1e-6,10e-6,number_of_cases_Ab)
     Aa = 5.0e-6
-    Ab = 5.0e-6
+
     wd_b = wb - 0.0001
     
     units = {'wa':'GHz',
@@ -810,7 +833,8 @@ if __name__ == "__main__":
     b = tensor(qeye(Na),destroy(Nb),qeye(Nr))
     r = tensor(qeye(Na),qeye(Nb),destroy(Nr))    
 
-    for idx,ga in enumerate(gas):
+    for idx,Ab in enumerate(Abs):
+        print('Creating sweep {}'.format(idx))
         sweeps=np.append(sweeps,create_wd_a_sweep(Na,Nb,Nr,
                                         wa,
                                         wb,
@@ -828,18 +852,234 @@ if __name__ == "__main__":
                                         n_points,
                                         idx))
 
-    name = "teste"
+    name = "shift_high_Aa5kHz_ka&kb100kHz_Na4_Nb4_Nr4_T1mk_solver_iterative_gmres_npoints_wd_a1000_Ab10points_range100_serial"
     experiment = Experiment(simulate_steadystate,a,b,r,
                             name,
                             sweeps,
                             wd_as,
-                            gas,
-                            'ga',
+                            Abs,
+                            'Ab',
                             'wd_a',
                             units)
 
-    experiment.simulate()
-
-    experiment.save('teste.data')
-
+    print('Simulating')
+    l = experiment.simulate(serial=False)
     
+    print('Processing')
+    experiment.process(l)
+    
+    time_end = time.time()
+    print('Simulation time taken(seconds): {}'.format(time_end-time_start))
+    
+    print('Saving instance')
+    experiment.save('D:\\'+name+'.data')
+    
+    time_end2 = time.time()
+    print('Saving data time taken(seconds): {}'.format(time_end2-time_end))
+    
+    print('Saving data to csv file')
+    experiment.save_csv('D:\\'+name)
+    
+    time_end3 = time.time()
+    print('Saving csv data time taken(seconds): {}'.format(time_end3-time_end2))
+    
+def simulation3mk():
+    time_start =time.time()
+    
+    print('Configuring tasks')
+
+    sweeps = np.array([])
+    Na= 4
+    Nb = 4
+    Nr = 6
+    wa = 5.1
+    wb = 5.7
+    wr = 0.1
+    ka = kb = 1.0e-4
+    kr = 5.0e-4
+    gb = 4e-3
+    ga = 6e-3
+    wd_begin = wa - 2000*1e-6
+    wd_end = wa + 2000*1e-6
+    T = 3e-3
+    n_points = 1000
+    number_of_cases_Ab = 10
+    Abs = np.linspace(1e-6,10e-6,number_of_cases_Ab)
+    Aa = 5.0e-6
+
+    wd_b = wb - 0.0001
+    
+    units = {'wa':'GHz',
+             'wb':'GHz',
+             'wr':'GHz',
+             'ka':'GHz',
+             'kb':'GHz',
+             'kr':'GHz', 
+             'ga':'GHz', 
+             'gb':'GHz', 
+             'Aa':'GHz', 
+             'Ab':'GHz', 
+             'T': 'K', 
+             'wd_a': 'GHz',
+             'wd_b': 'GHz',
+             'main_variable':'GHz',
+             'sweep_variable':'GHz'}
+
+    wd_as = np.linspace(wd_begin,wd_end,n_points)
+
+    a = tensor(destroy(Na),qeye(Nb),qeye(Nr))
+    b = tensor(qeye(Na),destroy(Nb),qeye(Nr))
+    r = tensor(qeye(Na),qeye(Nb),destroy(Nr))    
+
+    for idx,Ab in enumerate(Abs):
+        print('Creating sweep {}'.format(idx))
+        sweeps=np.append(sweeps,create_wd_a_sweep(Na,Nb,Nr,
+                                        wa,
+                                        wb,
+                                        wr,
+                                        ga,
+                                        gb,
+                                        ka,
+                                        kb,
+                                        kr,
+                                        T,
+                                        Aa,
+                                        Ab,
+                                        wd_as,
+                                        wd_b,
+                                        n_points,
+                                        idx))
+
+    name = "shift_high_Aa5kHz_ka&kb100kHz_Na4_Nb4_Nr6_T3mk_solver_iterative_gmres_npoints_wd_a1000_Ab10points"
+    experiment = Experiment(simulate_steadystate,a,b,r,
+                            name,
+                            sweeps,
+                            wd_as,
+                            Abs,
+                            'Ab',
+                            'wd_a',
+                            units)
+
+    print('Simulating')
+    l = experiment.simulate(serial=False)
+    
+    print('Processing')
+    experiment.process(l)
+    
+    time_end = time.time()
+    print('Simulation time taken(seconds): {}'.format(time_end-time_start))
+    
+    print('Saving instance')
+    experiment.save('D:\\'+name+'.data')
+    
+    time_end2 = time.time()
+    print('Saving data time taken(seconds): {}'.format(time_end2-time_end))
+    
+    print('Saving data to csv file')
+    experiment.save_csv('D:\\'+name)
+    
+    time_end3 = time.time()
+    print('Saving csv data time taken(seconds): {}'.format(time_end3-time_end2))
+    
+def simulation5mk():
+    time_start =time.time()
+    
+    print('Configuring tasks')
+
+    sweeps = np.array([])
+    Na= 4
+    Nb = 4
+    Nr = 4
+    wa = 5.1
+    wb = 5.7
+    wr = 0.1
+    ka = kb = 1.0e-4
+    kr = 5.0e-4
+    gb = 4e-3
+    ga = 6e-3
+    wd_begin = wa - 50*1e-6 -360e-6
+    wd_end = wa + 50*1e-6 -360e-6
+    T = 5e-3
+    n_points = 1000
+    number_of_cases_Ab = 10
+    Abs = np.linspace(1e-6,10e-6,number_of_cases_Ab)
+    Aa = 5.0e-6
+
+    wd_b = wb - 0.0001
+    
+    units = {'wa':'GHz',
+             'wb':'GHz',
+             'wr':'GHz',
+             'ka':'GHz',
+             'kb':'GHz',
+             'kr':'GHz', 
+             'ga':'GHz', 
+             'gb':'GHz', 
+             'Aa':'GHz', 
+             'Ab':'GHz', 
+             'T': 'K', 
+             'wd_a': 'GHz',
+             'wd_b': 'GHz',
+             'main_variable':'GHz',
+             'sweep_variable':'GHz'}
+
+    wd_as = np.linspace(wd_begin,wd_end,n_points)
+
+    a = tensor(destroy(Na),qeye(Nb),qeye(Nr))
+    b = tensor(qeye(Na),destroy(Nb),qeye(Nr))
+    r = tensor(qeye(Na),qeye(Nb),destroy(Nr))    
+
+    for idx,Ab in enumerate(Abs):
+        print('Creating sweep {}'.format(idx))
+        sweeps=np.append(sweeps,create_wd_a_sweep(Na,Nb,Nr,
+                                        wa,
+                                        wb,
+                                        wr,
+                                        ga,
+                                        gb,
+                                        ka,
+                                        kb,
+                                        kr,
+                                        T,
+                                        Aa,
+                                        Ab,
+                                        wd_as,
+                                        wd_b,
+                                        n_points,
+                                        idx))
+
+    name = "shift_high_Aa5kHz_ka&kb100kHz_Na4_Nb4_Nr4_T5mk_solver_iterative_gmres_npoints_wd_a1000_Ab10points_range100"
+    experiment = Experiment(simulate_steadystate,a,b,r,
+                            name,
+                            sweeps,
+                            wd_as,
+                            Abs,
+                            'Ab',
+                            'wd_a',
+                            units)
+
+    print('Simulating')
+    l = experiment.simulate(serial=False)
+    
+    print('Processing')
+    experiment.process(l)
+    
+    time_end = time.time()
+    print('Simulation time taken(seconds): {}'.format(time_end-time_start))
+    
+    print('Saving instance')
+    experiment.save('D:\\'+name+'.data')
+    
+    time_end2 = time.time()
+    print('Saving data time taken(seconds): {}'.format(time_end2-time_end))
+    
+    print('Saving data to csv file')
+    experiment.save_csv('D:\\'+name)
+    
+    time_end3 = time.time()
+    print('Saving csv data time taken(seconds): {}'.format(time_end3-time_end2))
+    
+
+if __name__ == "__main__":
+    freeze_support()
+    simulation1mk()
