@@ -1,2 +1,2 @@
 # QuantumSimulator
-This as quantum simulator usign Qutip
+A Python Script using Qutip that simulates quantum harmonic oscillators.
