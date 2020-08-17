@@ -1,18 +1,18 @@
 
 # The code simulates in parallel the steady state of an arbitrary Hamiltonian.
 #
-# We utilize QuTiP here to do the heavy calculations. The function used is steadystate,
-# which receives two parameters: A Hamiltonian and an array of colapse operators.
+# We utilize QuTiP here to calculatate the steadystate. Our main function
+# which is called in parallel needs two parameters: A Hamiltonian and a list of colapse operators.
 # The basic simulation process is: To define the Hamiltonian and the colapse operators, to simulate the dynamic
-# in parallel, to save the data returned by the simulation, which is the density matrix.
+# in parallel, to save the data returned by the simulation, which is a density matrices list.
 # 
 # There is one main data structure, Task, and one main function,
-# execute. Task, a dictionary everything  related to the creation of the Hamiltonian and
-# colapse operatores, for example,  frequencies, dissipations constants, destruction operators etc.
+# simulate. Task, a dictionary of everything related to the creation of the Hamiltonian and
+# colapse operatores. For example, frequencies, dissipations constants, destruction operators etc.
 #
-# Of course, a single task gives just one density state which is not useful that useful Therefore we
-# use an collections of task, called here a sweep. In a sweep all task are holds the same values
-# except for one parameter, for example drive on cavity.
+# Of course, a single task gives just one density state which is not really useful for our need.
+# Therefore, we use an collections of tasks, called here a sweep. In a sweep all task holds the same values
+# except for one parameter, for example the drive power on a cavity.
 #
 # A single simulation is usually organized like this:
 #
@@ -25,8 +25,6 @@
 # On the task, drive on cavity a is named "wd_a" and the coupling coefficient is named "g".
 # We would like to make 3 sweep to 3 different values of g from 0 to 2.
 #
-# Every sweep should be named as the coupling coefficient plus a number, for example "g0".
-# It is important to name sweep the same name used in the task.
 # Here is the example of the sweeps:
 #
 # Sweep "g0"
@@ -52,17 +50,6 @@
 # | g=2       | | g=2       |     | g=2      |
 # |   ...     | |   ...     |     |   ...    |
 # |-----------| |-----------|     |----------|
-#
-# Another important structure is the Experiment class which holds all the sweeps and format the
-# data returned to be saved. The experiment class is used to access the data simulated to be analyzed.
-#
-# Now that a general picture was drawn, here is the following sequence of function:
-# - In the main, the run_experiment1 function is called
-# - In run_experiment1, the sweeps are created as well as an Experiment class instance called experiment
-# - In run_experiment1, experiment is passed to the simulate function which creates the multiple process
-# - In simulate, a new process is created to each sweep. After all sweep are simulated, experiment instance format
-#   the list of data returned and simulate returns the new experiment instance
-# - In run_experiment1, experiment instance is saved
 #
 #########################################################################################################################
 
