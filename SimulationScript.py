@@ -369,27 +369,29 @@ if __name__ == "__main__":
     
     name = 'Nr15_p1000'
 
-    # The same parameters for all tasks
+    # The same parameters for all tasks. Unit is GHz.
     task = {
         'Na':4, # Destroy operator dimension of cavity a
         'Nb':4, # Destroy operator dimension of cavity b
         'Nr':15, # Destroy operator dimension of cavity r
-        'wa':5.1, # frequency of cavity 
-        'wb':5.7,
-        'wr':0.1,
-        'ka': 1.275e-4,
-        'kb': 1.425e-4,
-        'kr': 6.75e-4,
-        'ga':6.0e-3,
-        'gb':4.0e-3,
-        'T':10.0e-3,
-        'wdb':5.7,
-        'Ea':5.0e-6,
-        'main_variable_name': 'Eb',
-        'main_variable_length': 10,
-        'sweep_variable_name': 'wda',
-        'sweep_variable_length': 1000,
+        'wa':5.1, # Resonance frequency of cavity a
+        'wb':5.7, # Resonance frequency of cavity b
+        'wr':0.1, # Resonance frequency of cavity r
+        'ka': 1.275e-4, # dissipation coefficient of cavity a. Chosen so that cavity a quality factor is 40k
+        'kb': 1.425e-4, # dissipation coefficient of cavity b. Chosen so that cavity b quality factor is 40k
+        'kr': 6.75e-4, # ka = 5*(kb+kr)/2. Quality factor for cavity r is ~150
+        'ga':6.0e-3, # Coupling coefficient between cavity a and resonator r.
+        'gb':4.0e-3, # Coupling coefficient between cavity b and resonator r.
+        'T':10.0e-3, # Temperatura of the system
+        'wdb':5.7, # Drive frequency on cavity b
+        'Ea':5.0e-6, #Drive strength of cavity a
+        'main_variable_name': 'Eb', # the name of the parameter that is different to each sweep
+        'main_variable_length': 10, # number of sweeps
+        'sweep_variable_name': 'wda', # the name of the parameter that is swept.
+        'sweep_variable_length': 1000, # the length of each sweep
     }
+
+    # The units for each parameter
     task_units = {
         'wa':'GHz',
         'wb':'GHz',
@@ -410,12 +412,14 @@ if __name__ == "__main__":
     
     print('Configuring tasks')
 
+    # define wda
     n_points = task['sweep_variable_length']
     shift = task['ga']*task['ga']/task['wr']
     wda_i = task['wa'] - 250e-6 - shift
     wda_f = task['wa'] + 50e-6 - shift
     wdas = np.linspace(wda_i,wda_f,n_points,endpoint=True)
 
+    # define Eb
     n_sweeps = task['main_variable_length']
     Eb_i = 1.0e-6
     Eb_f = 160.0e-6
