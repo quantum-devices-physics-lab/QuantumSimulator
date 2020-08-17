@@ -72,7 +72,7 @@ qset.has_mkl = False
 
 
 def hamiltonian(task,a,b,r):
-    '''returns Hamiltonian defined in QuTiP to be simulated'''
+    '''returns Hamiltonian defined in QuTiP to be simulated. a,b and r are the destroy operators.'''
     wa = task['wa']
     wb = task['wb']
     wr = task['wr']
@@ -96,7 +96,7 @@ def hamiltonian(task,a,b,r):
     return H
 
 def collapse_operators(task,a,b,r):
-    '''returns a list of collapse operators to be used on the master solver'''
+    '''returns a list of collapse operators to be used on the master solver. a,b and r are the destruction operators.'''
     wa = task['wa']
     wb = task['wb']
     wr = task['wr']
@@ -119,6 +119,8 @@ def collapse_operators(task,a,b,r):
     
     c_ops = []
 
+    
+    # only add the list if is not zero
     if rate_excitation_a > 0.0:
         c_ops.append(np.sqrt(rate_excitation_a)*a.dag())
 
@@ -140,7 +142,8 @@ def collapse_operators(task,a,b,r):
     return c_ops
 
 def create_sweep(task,wda_i, wda_f, n_points):
-    '''returns an sweep of tasks'''
+    '''returns an sweep of tasks, which is a dictionary list. The tasks holds the parameter wda and they will range from wda_i to wda_f. The length of the returned list is equal to n_points.'''
+    
     wdas = np.linspace(wda_i,wda_f,n_points,endpoint=True)
     sweep = []
     for (idx,wda) in enumerate(wdas):
@@ -151,12 +154,13 @@ def create_sweep(task,wda_i, wda_f, n_points):
     return sweep
 
 def save_csv(filename,l,units):
-    '''saves the data to an csv file'''
+    '''saves the data to an csv file. To save in csv, define a list of column names, then create multiple dictionaries whose key values are the same as the list of column names.'''
     task = l[0]['task']
     Na = task['Na']
     Nb = task['Nb']
     Nr = task['Nr']
-    
+
+    # Saving a file which holds the units of the tasks parameters
     with open(filename+'_units.csv', mode='w',newline='') as csv_file:
         fieldnames = list(units.keys())
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
@@ -164,6 +168,7 @@ def save_csv(filename,l,units):
         writer.writeheader()
         writer.writerow(units)
 
+    # There is header file which will be used in the load_csv function to know how to interpret the data saved as density matrix.
     with open(filename+'_header.csv', mode='w',newline='') as csv_file:
         fieldnames = ['sweep_variable_name',
                       'sweep_variable_length',
@@ -191,6 +196,7 @@ def save_csv(filename,l,units):
                          'Nb':Nb,
                          'Nr':Nr})
 
+    #Saving all the tasks and density matrices.
     with open(filename+'.csv', mode='w',newline='') as csv_file:
         fieldnames = ['sweep_idx', 
                       'task_idx',
@@ -243,6 +249,8 @@ def save_csv(filename,l,units):
     
 def load_csv(filename):
     '''It reads the data from an csv file.'''
+
+    #Loads the header to acquire mainly the dimensions of the coupled systems.
     with open(filename+'_header.csv') as csvfile:
         readCSV = csv.reader(csvfile, delimiter=',')
         header = next(readCSV)
@@ -259,6 +267,7 @@ def load_csv(filename):
         Nb = int(data[9])
         Nr = int(data[10])      
 
+    # Define a matrices to be returned holding the data.
     tasks = np.zeros((main_variable_length,sweep_variable_length),dtype=dict)
     rhos = np.zeros((main_variable_length,sweep_variable_length),dtype=Qobj)
 
@@ -330,10 +339,26 @@ def simulate(task):
     H = hamiltonian(task,a,b,r)
     
     result = {}
+
+    # this will be used when loading the saved data to organize the list of tasks and density matrices.
     result['task_idx'] = task['task_idx']
     result['sweep_idx'] = task['sweep_idx']
 
 
+    # This the function which returns the density matrices for the steady state of our system.
+    # A brief explanation of the parameters used (some copied verbatim from the source code):
+    # H: the Hamiltonian
+    # c_ops:  a list of operators
+    # method: the type of method we will use. There are many, but we have found the
+    #    iterative-lgmres to be the fastest and still being accurate.
+    # use_precond: ITERATIVE ONLY. Use an incomplete sparse LU decomposition as a
+    #    preconditioner for the 'iterative' GMRES and BICG solvers.
+    #    Speeds up convergence time by orders of magnitude in many cases.
+    # use_rcm: Use reverse Cuthill-Mckee reordering to minimize fill-in in the
+    #    LU factorization of the Liouvillian.
+    # tol: ITERATIVE ONLY. Tolerance used for terminating solver.
+    # return_info: Return a dictionary of solver-specific infomation about the
+    #    solution and how it was obtained.
     rho_ss,info = steadystate(H, c_ops, method='iterative-lgmres',use_precond=True, 
                 use_rcm=True, tol=1e-15,return_info=True)
     
@@ -351,7 +376,8 @@ def simulate(task):
     return result
 
 if __name__ == "__main__":
-    # Here we connect
+
+    
     name = 'Nr15_p1000'
     task = {
         'Na':4,
