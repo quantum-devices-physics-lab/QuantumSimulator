@@ -85,7 +85,7 @@ qset.has_mkl = False
 
 
 def hamiltonian(task,a,b,r):
-    '''returns the same hamiltonian as defined above.'''
+    '''returns Hamiltonian defined in QuTiP to be simulated'''
     wa = task['wa']
     wb = task['wb']
     wr = task['wr']
@@ -109,7 +109,7 @@ def hamiltonian(task,a,b,r):
     return H
 
 def collapse_operators(task,a,b,r):
-    '''calculate the collapse operators'''
+    '''returns a list of collapse operators to be used on the master solver'''
     wa = task['wa']
     wb = task['wb']
     wr = task['wr']
@@ -153,7 +153,7 @@ def collapse_operators(task,a,b,r):
     return c_ops
 
 def create_sweep(task,wda_i, wda_f, n_points):
-    '''Create an sweep of tasks'''
+    '''returns an sweep of tasks'''
     wdas = np.linspace(wda_i,wda_f,n_points,endpoint=True)
     sweep = []
     for (idx,wda) in enumerate(wdas):
@@ -164,6 +164,7 @@ def create_sweep(task,wda_i, wda_f, n_points):
     return sweep
 
 def save_csv(filename,l,units):
+    '''saves the data to an csv file'''
     task = l[0]['task']
     Na = task['Na']
     Nb = task['Nb']
@@ -254,6 +255,7 @@ def save_csv(filename,l,units):
             writer.writerow(tarefa)
     
 def load_csv(filename):
+    '''It reads the data from an csv file.'''
     with open(filename+'_header.csv') as csvfile:
         readCSV = csv.reader(csvfile, delimiter=',')
         header = next(readCSV)
@@ -329,7 +331,7 @@ def load_csv(filename):
     return (tasks,rhos)
 
 def simulate(task):
-    
+    '''calculates a density matrix using the master solver steadystate. It uses the iterative method lgmres.'''
 
     # The destruction operator
     a = tensor(destroy(task['Na']),qeye(task['Nb']),qeye(task['Nr']))
@@ -362,6 +364,7 @@ def simulate(task):
     return result
 
 if __name__ == "__main__":
+    # Here we connect
     name = 'Nr15_p1000'
     task = {
         'Na':4,
