@@ -141,17 +141,6 @@ def collapse_operators(task,a,b,r):
         
     return c_ops
 
-def create_sweep(task,wda_i, wda_f, n_points):
-    '''returns an sweep of tasks, which is a dictionary list. The tasks holds the parameter wda and they will range from wda_i to wda_f. The length of the returned list is equal to n_points.'''
-    
-    wdas = np.linspace(wda_i,wda_f,n_points,endpoint=True)
-    sweep = []
-    for (idx,wda) in enumerate(wdas):
-        newtask = task.copy()
-        newtask['wda'] = wda
-        newtask['task_idx'] = idx
-        sweep.append(newtask)
-    return sweep
 
 def save_csv(filename,l,units):
     '''saves the data to an csv file. To save in csv, define a list of column names, then create multiple dictionaries whose key values are the same as the list of column names.'''
@@ -379,11 +368,13 @@ if __name__ == "__main__":
 
     
     name = 'Nr15_p1000'
+
+    # The same parameters for all tasks
     task = {
-        'Na':4,
-        'Nb':4,
-        'Nr':15,
-        'wa':5.1,
+        'Na':4, # Destroy operator dimension of cavity a
+        'Nb':4, # Destroy operator dimension of cavity b
+        'Nr':15, # Destroy operator dimension of cavity r
+        'wa':5.1, # frequency of cavity 
         'wb':5.7,
         'wr':0.1,
         'ka': 1.275e-4,
