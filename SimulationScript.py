@@ -1,18 +1,18 @@
 
 # The code simulates in parallel the steady state of an arbitrary Hamiltonian.
 #
-# We utilize QuTiP here to do the heavy calculations. The function used is steadystate,
-# which receives two parameters: A Hamiltonian and an array of colapse operators.
+# We utilize QuTiP here to calculatate the steadystate. Our main function
+# which is called in parallel needs two parameters: A Hamiltonian and a list of colapse operators.
 # The basic simulation process is: To define the Hamiltonian and the colapse operators, to simulate the dynamic
-# in parallel, to save the data returned by the simulation, which is the density matrix.
+# in parallel, to save the data returned by the simulation, which is a density matrices list.
 # 
 # There is one main data structure, Task, and one main function,
-# execute. Task, a dictionary everything  related to the creation of the Hamiltonian and
-# colapse operatores, for example,  frequencies, dissipations constants, destruction operators etc.
+# simulate. Task, a dictionary of everything related to the creation of the Hamiltonian and
+# colapse operatores. For example, frequencies, dissipations constants, destruction operators etc.
 #
-# Of course, a single task gives just one density state which is not useful that useful Therefore we
-# use an collections of task, called here a sweep. In a sweep all task are holds the same values
-# except for one parameter, for example drive on cavity.
+# Of course, a single task gives just one density state which is not really useful for our need.
+# Therefore, we use an collections of tasks, called here a sweep. In a sweep all task holds the same values
+# except for one parameter, for example the drive power on a cavity.
 #
 # A single simulation is usually organized like this:
 #
@@ -25,8 +25,6 @@
 # On the task, drive on cavity a is named "wd_a" and the coupling coefficient is named "g".
 # We would like to make 3 sweep to 3 different values of g from 0 to 2.
 #
-# Every sweep should be named as the coupling coefficient plus a number, for example "g0".
-# It is important to name sweep the same name used in the task.
 # Here is the example of the sweeps:
 #
 # Sweep "g0"
@@ -53,17 +51,6 @@
 # |   ...     | |   ...     |     |   ...    |
 # |-----------| |-----------|     |----------|
 #
-# Another important structure is the Experiment class which holds all the sweeps and format the
-# data returned to be saved. The experiment class is used to access the data simulated to be analyzed.
-#
-# Now that a general picture was drawn, here is the following sequence of function:
-# - In the main, the run_experiment1 function is called
-# - In run_experiment1, the sweeps are created as well as an Experiment class instance called experiment
-# - In run_experiment1, experiment is passed to the simulate function which creates the multiple process
-# - In simulate, a new process is created to each sweep. After all sweep are simulated, experiment instance format
-#   the list of data returned and simulate returns the new experiment instance
-# - In run_experiment1, experiment instance is saved
-#
 #########################################################################################################################
 
 from qutip import *
@@ -85,7 +72,7 @@ qset.has_mkl = False
 
 
 def hamiltonian(task,a,b,r):
-    '''returns the same hamiltonian as defined above.'''
+    '''returns Hamiltonian defined in QuTiP to be simulated. a,b and r are the destroy operators.'''
     wa = task['wa']
     wb = task['wb']
     wr = task['wr']
@@ -109,7 +96,7 @@ def hamiltonian(task,a,b,r):
     return H
 
 def collapse_operators(task,a,b,r):
-    '''calculate the collapse operators'''
+    '''returns a list of collapse operators to be used on the master solver. a,b and r are the destruction operators.'''
     wa = task['wa']
     wb = task['wb']
     wr = task['wr']
@@ -132,6 +119,8 @@ def collapse_operators(task,a,b,r):
     
     c_ops = []
 
+    
+    # only add the list if is not zero
     if rate_excitation_a > 0.0:
         c_ops.append(np.sqrt(rate_excitation_a)*a.dag())
 
@@ -152,23 +141,15 @@ def collapse_operators(task,a,b,r):
         
     return c_ops
 
-def create_sweep(task,wda_i, wda_f, n_points):
-    '''Create an sweep of tasks'''
-    wdas = np.linspace(wda_i,wda_f,n_points,endpoint=True)
-    sweep = []
-    for (idx,wda) in enumerate(wdas):
-        newtask = task.copy()
-        newtask['wda'] = wda
-        newtask['task_idx'] = idx
-        sweep.append(newtask)
-    return sweep
 
 def save_csv(filename,l,units):
+    '''saves the data to an csv file. To save in csv, define a list of column names, then create multiple dictionaries whose key values are the same as the list of column names.'''
     task = l[0]['task']
     Na = task['Na']
     Nb = task['Nb']
     Nr = task['Nr']
-    
+
+    # Saving a file which holds the units of the tasks parameters
     with open(filename+'_units.csv', mode='w',newline='') as csv_file:
         fieldnames = list(units.keys())
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
@@ -176,6 +157,7 @@ def save_csv(filename,l,units):
         writer.writeheader()
         writer.writerow(units)
 
+    # There is header file which will be used in the load_csv function to know how to interpret the data saved as density matrix.
     with open(filename+'_header.csv', mode='w',newline='') as csv_file:
         fieldnames = ['sweep_variable_name',
                       'sweep_variable_length',
@@ -203,6 +185,7 @@ def save_csv(filename,l,units):
                          'Nb':Nb,
                          'Nr':Nr})
 
+    #Saving all the tasks and density matrices.
     with open(filename+'.csv', mode='w',newline='') as csv_file:
         fieldnames = ['sweep_idx', 
                       'task_idx',
@@ -254,6 +237,9 @@ def save_csv(filename,l,units):
             writer.writerow(tarefa)
     
 def load_csv(filename):
+    '''It reads the data from an csv file.'''
+
+    #Loads the header to acquire mainly the dimensions of the coupled systems.
     with open(filename+'_header.csv') as csvfile:
         readCSV = csv.reader(csvfile, delimiter=',')
         header = next(readCSV)
@@ -270,6 +256,7 @@ def load_csv(filename):
         Nb = int(data[9])
         Nr = int(data[10])      
 
+    # Define a matrices to be returned holding the data.
     tasks = np.zeros((main_variable_length,sweep_variable_length),dtype=dict)
     rhos = np.zeros((main_variable_length,sweep_variable_length),dtype=Qobj)
 
@@ -329,7 +316,7 @@ def load_csv(filename):
     return (tasks,rhos)
 
 def simulate(task):
-    
+    '''calculates a density matrix using the master solver steadystate. It uses the iterative method lgmres.'''
 
     # The destruction operator
     a = tensor(destroy(task['Na']),qeye(task['Nb']),qeye(task['Nr']))
@@ -341,10 +328,26 @@ def simulate(task):
     H = hamiltonian(task,a,b,r)
     
     result = {}
+
+    # this will be used when loading the saved data to organize the list of tasks and density matrices.
     result['task_idx'] = task['task_idx']
     result['sweep_idx'] = task['sweep_idx']
 
 
+    # This the function which returns the density matrices for the steady state of our system.
+    # A brief explanation of the parameters used (some copied verbatim from the source code):
+    # H: the Hamiltonian
+    # c_ops:  a list of operators
+    # method: the type of method we will use. There are many, but we have found the
+    #    iterative-lgmres to be the fastest and still being accurate.
+    # use_precond: ITERATIVE ONLY. Use an incomplete sparse LU decomposition as a
+    #    preconditioner for the 'iterative' GMRES and BICG solvers.
+    #    Speeds up convergence time by orders of magnitude in many cases.
+    # use_rcm: Use reverse Cuthill-Mckee reordering to minimize fill-in in the
+    #    LU factorization of the Liouvillian.
+    # tol: ITERATIVE ONLY. Tolerance used for terminating solver.
+    # return_info: Return a dictionary of solver-specific infomation about the
+    #    solution and how it was obtained.
     rho_ss,info = steadystate(H, c_ops, method='iterative-lgmres',use_precond=True, 
                 use_rcm=True, tol=1e-15,return_info=True)
     
@@ -362,27 +365,33 @@ def simulate(task):
     return result
 
 if __name__ == "__main__":
+
+    
     name = 'Nr15_p1000'
+
+    # The same parameters for all tasks. Unit is GHz.
     task = {
-        'Na':4,
-        'Nb':4,
-        'Nr':15,
-        'wa':5.1,
-        'wb':5.7,
-        'wr':0.1,
-        'ka': 1.275e-4,
-        'kb': 1.425e-4,
-        'kr': 6.75e-4,
-        'ga':6.0e-3,
-        'gb':4.0e-3,
-        'T':10.0e-3,
-        'wdb':5.7,
-        'Ea':5.0e-6,
-        'main_variable_name': 'Eb',
-        'main_variable_length': 10,
-        'sweep_variable_name': 'wda',
-        'sweep_variable_length': 1000,
+        'Na':4, # Destroy operator dimension of cavity a
+        'Nb':4, # Destroy operator dimension of cavity b
+        'Nr':15, # Destroy operator dimension of cavity r
+        'wa':5.1, # Resonance frequency of cavity a
+        'wb':5.7, # Resonance frequency of cavity b
+        'wr':0.1, # Resonance frequency of cavity r
+        'ka': 1.275e-4, # dissipation coefficient of cavity a. Chosen so that cavity a quality factor is 40k
+        'kb': 1.425e-4, # dissipation coefficient of cavity b. Chosen so that cavity b quality factor is 40k
+        'kr': 6.75e-4, # ka = 5*(kb+kr)/2. Quality factor for cavity r is ~150
+        'ga':6.0e-3, # Coupling coefficient between cavity a and resonator r.
+        'gb':4.0e-3, # Coupling coefficient between cavity b and resonator r.
+        'T':10.0e-3, # Temperatura of the system
+        'wdb':5.7, # Drive frequency on cavity b
+        'Ea':5.0e-6, #Drive strength of cavity a
+        'main_variable_name': 'Eb', # the name of the parameter that is different to each sweep
+        'main_variable_length': 10, # number of sweeps
+        'sweep_variable_name': 'wda', # the name of the parameter that is swept.
+        'sweep_variable_length': 1000, # the length of each sweep
     }
+
+    # The units for each parameter
     task_units = {
         'wa':'GHz',
         'wb':'GHz',
@@ -403,12 +412,14 @@ if __name__ == "__main__":
     
     print('Configuring tasks')
 
+    # define wda
     n_points = task['sweep_variable_length']
     shift = task['ga']*task['ga']/task['wr']
     wda_i = task['wa'] - 250e-6 - shift
     wda_f = task['wa'] + 50e-6 - shift
     wdas = np.linspace(wda_i,wda_f,n_points,endpoint=True)
 
+    # define Eb
     n_sweeps = task['main_variable_length']
     Eb_i = 1.0e-6
     Eb_f = 160.0e-6
